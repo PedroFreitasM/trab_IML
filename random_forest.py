@@ -1,188 +1,216 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import gc 
-
+import gc
+from imblearn.under_sampling import RandomUnderSampler
 from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (
-    classification_report,
-    confusion_matrix,
-    f1_score,
-    recall_score,
-    precision_score,
-    ConfusionMatrixDisplay
+    confusion_matrix, f1_score, recall_score, precision_score, ConfusionMatrixDisplay
 )
 
-from imblearn.under_sampling import RandomUnderSampler
+# ETAPA 1: FUNÇÕES AUXILIARES (PREPARAÇÃO)
 
-# 1. FUNÇÕES AUXILIARES E PRÉ-PROCESSAMENTO
+def optimize_memory(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Reduz o tamanho que os dados numéricos ocupam na memória RAM.
+    """
+    for col in df.select_dtypes(include=[np.number]).columns:
+        # Se tiver dados vazios (NaN), ignora-se
+        if df[col].isnull().any():
+            continue
 
-def optimize_memory(df):
-    """Aplica downcasting nos tipos numéricos para economizar memória."""
-    for col in df.columns:
-        col_type = df[col].dtype
-        if col_type != object:
-            c_min = df[col].min()
-            c_max = df[col].max()
-            if str(col_type)[:3] == 'int':
-                if c_min > np.iinfo(np.int8).min and c_max < np.iinfo(np.int8).max:
-                    df[col] = df[col].astype(np.int8)
-                elif c_min > np.iinfo(np.int16).min and c_max < np.iinfo(np.int16).max:
-                    df[col] = df[col].astype(np.int16)
-                elif c_min > np.iinfo(np.int32).min and c_max < np.iinfo(np.int32).max:
-                    df[col] = df[col].astype(np.int32)
-            else:
-                if c_min > np.finfo(np.float32).min and c_max < np.finfo(np.float32).max:
-                    df[col] = df[col].astype(np.float32)
+        valor_min = df[col].min()
+        valor_max = df[col].max()
+        tipo_coluna = df[col].dtype
+
+        # Se for um número inteiro
+        if np.issubdtype(tipo_coluna, np.integer):
+            if valor_min > np.iinfo(np.int8).min and valor_max < np.iinfo(np.int8).max:
+                df[col] = df[col].astype(np.int8)
+            elif valor_min > np.iinfo(np.int16).min and valor_max < np.iinfo(np.int16).max:
+                df[col] = df[col].astype(np.int16)
+            elif valor_min > np.iinfo(np.int32).min and valor_max < np.iinfo(np.int32).max:
+                df[col] = df[col].astype(np.int32)
+
+        # Se for um número decimal
+        elif np.issubdtype(tipo_coluna, np.floating):
+            if valor_min > np.finfo(np.float32).min and valor_max < np.finfo(np.float32).max:
+                df[col] = df[col].astype(np.float32)
     return df
 
-def clean_data(df):
-    """Remove infinitos e valores ausentes."""
-    df.columns = df.columns.str.strip()
+def clean_data(df: pd.DataFrame) -> pd.DataFrame:
+    """ Remove linhas com erros matemáticos (Infinito) ou vazias (NaN). """
+    total_antes = len(df)
+
+    df.columns = df.columns.str.strip()  # Remove espaços extras no nome das colunas
     df.replace([np.inf, -np.inf], np.nan, inplace=True)
     df.dropna(inplace=True)
+
+    total_depois = len(df)
+    print(f"   [Limpeza] Linhas removidas: {total_antes - total_depois}")
     return df
 
-# 2. CARREGAMENTO DOS DADOS
+# ETAPA 2: CARREGAMENTO E UNIÃO DOS DADOS
 
-print("Carregando os arquivos Parquet...")
-df_benign = pd.read_parquet("Benign-Monday-no-metadata.parquet")
-df_ddos = pd.read_parquet("DDoS-Friday-no-metadata.parquet")
-df_portscan = pd.read_parquet("Portscan-Friday-no-metadata.parquet")
+print("CARREGAMENTO DOS DADOS")
 
+# Carrega os 3 arquivos separados
+df_benign   = pd.read_parquet('data/Benign-Monday-no-metadata.parquet')
+df_ddos     = pd.read_parquet('data/DDoS-Friday-no-metadata.parquet')
+df_portscan = pd.read_parquet('data/Portscan-Friday-no-metadata.parquet')
+
+# Une os 3 arquivos em um dataframe
 df_full = pd.concat([df_benign, df_ddos, df_portscan], ignore_index=True)
+
+# Libera espaço na RAM
 del df_benign, df_ddos, df_portscan
-gc.collect() # Libera a RAM imediatamente
+gc.collect()
 
-print("Otimizando memória...")
+print("Otimizando e limpando os dados unidos...")
 df_full = optimize_memory(df_full)
-
-print("Limpando dados...")
 df_full = clean_data(df_full)
 
-# 3. CRIAÇÃO DA VARIÁVEL ALVO
+# 0 = Tráfego Normal (Benigno) ou 1 = Ataque Cibernético
+df_full['Label'] = df_full['Label'].astype(str).str.strip().str.upper()
+df_full['Label_Binary'] = df_full['Label'].apply(lambda x: 0 if 'BENIGN' in x else 1)
 
-if "Label" not in df_full.columns:
-    raise ValueError("Coluna 'Label' não encontrada.")
-
-df_full["Label"] = df_full["Label"].astype(str).str.strip().str.upper()
-df_full["Label_Binary"] = df_full["Label"].apply(lambda x: 0 if "BENIGN" in x else 1)
-
-print("\nDistribuição das classes:")
-print(df_full["Label_Binary"].value_counts())
-
-X = df_full.drop(columns=["Label", "Label_Binary"])
+y = df_full['Label_Binary']
+X = df_full.drop(columns=['Label', 'Label_Binary'])
 X = X.select_dtypes(include=[np.number])
-y = df_full["Label_Binary"]
 
-del df_full 
+del df_full
 gc.collect()
 
-# 4. DIVISÃO TREINO / VALIDAÇÃO / TESTE
+# ETAPA 3: DIVISÃO DOS DADOS (TREINO, VALIDAÇÃO E TESTE)
 
-print("\nDividindo os dados...")
+print("\nDIVISÃO DOS DADOS")
 
+# Separa 70% para Treino e guarda 30% como Temporário
 X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=0.30, random_state=42, stratify=y)
-del X, y 
-gc.collect()
+del X, y; gc.collect()
 
+# Pega-se os 30% temporários e divide-se ao meio (15% Validação, 15% Teste)
 X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.50, random_state=42, stratify=y_temp)
-del X_temp, y_temp 
-gc.collect()
+del X_temp, y_temp; gc.collect()
 
-# 5. BALANCEAMENTO
+# ETAPA 4: PADRONIZAÇÃO E BALANCEAMENTO
 
-print("Aplicando RandomUnderSampler...")
+print("\nPADRONIZAÇÃO E BALANCEAMENTO")
+
+# Coloca-se todas as grandezas na mesma escala (para treino, validação e teste)
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train).astype(np.float32)
+X_val_scaled   = scaler.transform(X_val).astype(np.float32)
+X_test_scaled  = scaler.transform(X_test).astype(np.float32)
+
+# Salva os nomes das features antes de deletar X_train e X_val
+feature_names = X_train.columns.tolist()
+
+del X_train, X_val; gc.collect()
+
+# Reduz os dados normais para ficarem na mesma quantidade dos ataques
 rus = RandomUnderSampler(random_state=42)
-X_train_resampled, y_train_resampled = rus.fit_resample(X_train, y_train)
+X_train_res, y_train_res = rus.fit_resample(X_train_scaled, y_train)
 
-del X_train, y_train # Limpa os dados desbalanceados
-gc.collect()
+del X_train_scaled, y_train; gc.collect()
 
-print(f"Amostras após balanceamento: {len(X_train_resampled)}")
+# ETAPA 5: TREINAMENTO DO MODELO E BUSCA PELOS MELHORES PARÂMETROS
 
-# 6. RANDOM FOREST + GRID SEARCH
+print("\nTREINAMENTO (RANDOM FOREST)")
 
-print("Treinando Random Forest...")
+# Modelo de ensemble a ser usado
+modelo_base = RandomForestClassifier(random_state=42, n_jobs=-1)
 
-param_grid = {
+# Diferentes hiperparâmetros para o computador testar
+parametros_para_testar = {
     'n_estimators': [100, 200],
-    'max_depth': [10, 20], 
+    'max_depth': [10, 20],
     'min_samples_split': [2, 5],
     'min_samples_leaf': [1, 2]
 }
 
-rf = RandomForestClassifier(random_state=42, n_jobs=-1)
-
-grid_search = GridSearchCV(
-    estimator=rf,
-    param_grid=param_grid,
+# GridSearchCV: Vai testar todas as combinações de parâmetros acima para achar a melhor
+otimizador = GridSearchCV(
+    estimator=modelo_base,
+    param_grid=parametros_para_testar,
     cv=3,
-    scoring='f1',
-    n_jobs=1, 
+    scoring='f1',    # A métrica que ele vai tentar maximizar é o F1-Score
+    n_jobs=1,        # Usa 1 núcleo do processador para evitar estourar a memória RAM
     verbose=2
 )
 
-grid_search.fit(X_train_resampled, y_train_resampled)
-best_model = grid_search.best_estimator_
+# Treina o modelo com os dados balanceados e padronizados
+otimizador.fit(X_train_res, y_train_res)
 
-print("\nMelhores hiperparâmetros encontrados:")
-print(grid_search.best_params_)
+# Melhor modelo encontrado pelo GridSearchCV
+melhor_modelo = otimizador.best_estimator_
+print(f"Melhor configuração encontrada: {otimizador.best_params_}")
 
-# 7. AVALIAÇÃO FINAL
+del X_train_res, y_train_res; gc.collect()
 
-print("\n--- Avaliação no conjunto de teste ---")
-y_test_pred = best_model.predict(X_test)
-cm_test = confusion_matrix(y_test, y_test_pred)
+# ETAPA 6: AVALIAÇÃO FINAL NO CONJUNTO DE TESTE
 
-print(classification_report(y_test, y_test_pred, target_names=["Normal (0)", "Ataque (1)"]))
+print("\n--- AVALIAÇÃO NO TESTE FINAL ---")
 
-recall_val = recall_score(y_test, y_test_pred)
-precision_val = precision_score(y_test, y_test_pred)
-f1_val = f1_score(y_test, y_test_pred)
+# Realiza-se a predição usando o melhor modelo encontrado e os dados de teste
+y_predicao = melhor_modelo.predict(X_test_scaled)
 
-print("\n--- Resumo das Métricas Críticas ---")
-print(f"Falsos Positivos: {cm_test[0][1]}")
-print(f"Falsos Negativos: {cm_test[1][0]}")
-print(f"Recall: {recall_val:.4f} | Precision: {precision_val:.4f} | F1-Score: {f1_val:.4f}")
+# Calculam-se as métricas de acerto
+matriz_confusao = confusion_matrix(y_test, y_predicao)
+tn, fp, fn, tp = matriz_confusao.ravel()  # Verdadeiros/Falsos Positivos/Negativos
 
-# 8. MATRIZ DE CONFUSÃO
+print(f" Verdadeiros Positivos (Ataques bloqueados)  : {tp}")
+print(f" Verdadeiros Negativos (Tráfego normal solto): {tn}")
+print(f" Falsos Positivos (Tráfego normal bloqueado) : {fp} <- ALARME FALSO")
+print(f" Falsos Negativos (Ataques não detectados)   : {fn} <- FALHA DE SEGURANÇA")
 
-print("\nGerando matriz de confusão visual...")
-fig, ax = plt.subplots(figsize=(8, 6))
-disp = ConfusionMatrixDisplay(confusion_matrix=cm_test, display_labels=["Benigno (0)", "Ataque (1)"])
-disp.plot(cmap=plt.cm.Blues, ax=ax, values_format='d')
+print(f"\nRecall (Taxa de captura de ataques): {recall_score(y_test, y_predicao):.4f}")
+print(f"Precision (Precisão dos alarmes)   : {precision_score(y_test, y_predicao):.4f}")
+print(f"F1-Score (Média harmônica)         : {f1_score(y_test, y_predicao):.4f}")
 
-plt.title("Matriz de Confusão - Random Forest", fontsize=14, pad=15)
-plt.xlabel("Rótulo Predito (Pelo Modelo)")
-plt.ylabel("Rótulo Realidade")
+# ETAPA 7: VISUALIZAÇÃO GRÁFICA
+
+print("\nGerando gráficos...")
+
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+fig.suptitle('Desempenho da Detecção de Ataques Cibernéticos', fontsize=14, fontweight='bold')
+
+# Gráfico 1: Quantidade Absoluta
+disp_abs = ConfusionMatrixDisplay(confusion_matrix=matriz_confusao, display_labels=['Benigno', 'Ataque'])
+disp_abs.plot(cmap='Blues', ax=axes[0], values_format='d', colorbar=False)
+axes[0].set_title('Contagens Absolutas')
+
+# Gráfico 2: Porcentagem
+matriz_normalizada = confusion_matrix(y_test, y_predicao, normalize='true')
+disp_norm = ConfusionMatrixDisplay(confusion_matrix=matriz_normalizada, display_labels=['Benigno', 'Ataque'])
+disp_norm.plot(cmap='Oranges', ax=axes[1], values_format='.2%', colorbar=False)
+axes[1].set_title('Proporções (%)')
+
 plt.tight_layout()
-
-plt.savefig("matriz_confusao_RF.png", dpi=300)
+plt.savefig('matriz_confusao_RF.png', dpi=300)
 print("Sucesso! Imagem salva como 'matriz_confusao_RF.png'")
 
-# 9. IMPORTÂNCIA DAS FEATURES
+# ETAPA 8: IMPORTÂNCIA DAS FEATURES
 
-print("\nAnalisando Importância das Features...")
+print("\nIMPORTÂNCIA DAS FEATURES")
+
 importances = pd.DataFrame({
-    'Feature': X_val.columns, 
-    'Importance': best_model.feature_importances_
-})
+    'Feature': feature_names,
+    'Importance': melhor_modelo.feature_importances_
+}).sort_values(by='Importance', ascending=False)
 
-importances = importances.sort_values(by='Importance', ascending=False)
 print("\nTop 20 Features Mais Importantes:")
-print(importances.head(20))
+print(importances.head(20).to_string(index=False))
 
-top_20_features = importances.head(20).sort_values(by='Importance', ascending=True)
+top_20 = importances.head(20).sort_values(by='Importance', ascending=True)
 
-plt.figure(figsize=(10,8))
-top_20_features.plot(x='Feature', y='Importance', kind='barh', color='skyblue', legend=False)
-
-plt.title("Top 20 Atributos de Rede Mais Relevantes para a Detecção", fontsize=14, pad=15)
-plt.xlabel("Grau de Importância (Gini)", fontsize=12)
-plt.ylabel("Atributo (Feature)", fontsize=12)
+plt.figure(figsize=(10, 8))
+plt.barh(top_20['Feature'], top_20['Importance'], color='skyblue')
+plt.title('Top 20 Atributos de Rede Mais Relevantes para a Detecção', fontsize=14, pad=15)
+plt.xlabel('Grau de Importância (Gini)', fontsize=12)
+plt.ylabel('Atributo (Feature)', fontsize=12)
 plt.tight_layout()
-
-plt.savefig("feature_importance_RF.png", dpi=300)
+plt.savefig('feature_importance_RF.png', dpi=300)
 print("Sucesso! Imagem salva como 'feature_importance_RF.png'")
