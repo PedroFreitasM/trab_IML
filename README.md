@@ -12,22 +12,22 @@ O modelo focará nas variáveis mais importantes para o escopo, como `Flow Durat
 
 ## 3. Pipeline de Aprendizado de Máquina (Back-end)
 
-* **Pré-processamento:** Tratamento de valores nulos e infinitos , codificação de variáveis categóricas e normalização de features numéricas. Aplica-se o algoritmo **SMOTE** para balanceamento das classes.
+* **Pré-processamento:** Tratamento de valores nulos e infinitos , codificação de variáveis categóricas e normalização de features numéricas.
 
 
 * **Modelagem:**
 1. 
+*Decision Tree:* Para interpretabilidade
+
+2.
 *Random Forest:* Método principal que lida com alta dimensionalidade, captura relações não lineares e oferece índice de importância de variáveis.
 
-
-2. 
+3. 
 *Regressão Logística:* Modelo de *baseline* linear com velocidade de inferência superior.
 
 
-3. 
-*Isolation Forest (Opcional):* Abordagem não supervisionada que sinaliza desvios do padrão normal.
-
-
+4. 
+*Isolation Forest (talvez?):* Abordagem não supervisionada que sinaliza desvios do padrão normal.
 
 
 * **Validação e Teste:** Divisão dos dados em 70% para treino, 15% para validação e 15% para testes (ou K-Fold). Os hiperparâmetros serão otimizados via `GridSearchCV` ou `RandomizedSearchCV`.
