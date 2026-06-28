@@ -2,17 +2,20 @@
 # Dependencias - Deteccao e Identificacao de Anomalias (CICIDS2017)
 # =====================================================================
 # Alvo: Python 3.12 (estavel para scikit-learn / imbalanced-learn).
-# ATENCAO: o .venv atual usa Python 3.14.6 -> alto risco de faltar wheel
-# (ex.: imbalanced-learn/numpy). Conforme Fase 0 do PLAN.md, recriar o
-# venv com Python 3.12:
+# ATENCAO: nesta maquina so existe Python 3.14 -> numpy 1.26/sklearn 1.5
+# nao tem wheel para 3.14. Usar uv (ja instalado) para baixar o 3.12 e
+# recriar o venv (Fase 0 do PLAN.md):
 #
-#   rmdir /s /q .venv                 (PowerShell: Remove-Item -Recurse -Force .venv)
-#   py -3.12 -m venv .venv
-#   .venv\Scripts\python.exe -m pip install --upgrade pip
-#   .venv\Scripts\python.exe -m pip install -r requirements.txt
+#   uv python install 3.12
+#   Remove-Item -Recurse -Force .venv
+#   uv venv --python 3.12 .venv
+#   uv pip install -r requirements.txt
+#
+# Fallback sem uv: instalar Python 3.12 (python.org) e
+#   py -3.12 -m venv .venv ; .venv\Scripts\python.exe -m pip install -r requirements.txt
 #
 # Validar:
-#   .venv\Scripts\python.exe -c "import pandas, sklearn, imblearn, streamlit, seaborn"
+#   .venv\Scripts\python.exe -c "import pandas, sklearn, imblearn, streamlit, seaborn, pyarrow"
 # =====================================================================
 
 # --- Manipulacao de dados ---
