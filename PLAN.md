@@ -13,40 +13,64 @@ Dataset CIC-IDS2017 — https://www.kaggle.com/datasets/dhoogla/cicids2017/data
 O projeto entrega um sistema de ML que analisa fluxos de tráfego de rede, **detecta**
 comportamento malicioso e **identifica o tipo de ataque**, com um dashboard de alertas.
 Base nos pontos já apresentados pelo grupo (1ª apresentação): dataset CICIDS2017 (77 features,
->2 milhões de registros, já pré-processado no Kaggle — sem nulos/infinitos, sem IP/timestamp,
-valores normalizados); modelos Decision Tree, Random Forest e Regressão Logística; estratégia
-70/15/15 com ajuste de hiperparâmetros (Grid/Random Search); métricas Precisão, Recall e F1;
-e reflexão ética (privacidade, falsos positivos, supervisão humana).
+>2 milhões de registros, supostamente já pré-processado no Kaggle — sem nulos/infinitos, sem
+IP/timestamp, valores normalizados — **a confirmar, ver Fase 1**); modelos Decision Tree,
+Random Forest e Regressão Logística; estratégia 70/15/15 com ajuste de hiperparâmetros
+(Grid/Random Search); métricas Precisão, Recall e F1; e reflexão ética (privacidade, falsos
+positivos, supervisão humana).
 
 Hoje existe: os dados (`data/*.parquet`, 8 famílias), um script de modelo binário funcional
 até a matriz de confusão (`backend/analise_matriz.py`) e a imagem gerada (`images/mat_confusao.png`).
 
-**Bloqueio crítico:** o `.venv` (Python 3.14.6) só tem `pip` — nenhuma biblioteca instalada,
-então **nenhum script roda atualmente**. Não há `requirements.txt`. O `backend/tratamento.py`
-está quebrado (erro de sintaxe na linha 3, usa `ficheiros_alvo` inexistente, grafia errada
-`DDos`) e os scripts leem os parquet do diretório atual, mas os arquivos estão em `data/`.
+**Bloqueio crítico (ambiente):** a única versão instalada na máquina é **Python 3.14**
+(`py -3.12/-3.11` → "No suitable Python runtime found"), e o `.venv` (Python 3.14.6) só tem
+`pip` — nenhuma biblioteca, então **nenhum script roda**. Não há `requirements.txt` versionado
+de forma utilizável em 3.14 (numpy 1.26/sklearn 1.5 não têm wheel p/ 3.14). **`uv` está instalado**
+(`AppData\Roaming\uv`) e resolve isso baixando o Python 3.12 — ver Fase 0.
+
+**Bloqueio crítico (código):** o `backend/tratamento.py` está quebrado e **nunca executou**:
+`from sklearn,model_selection` (vírgula, linha 3), itera sobre `ficheiros_alvo` inexistente
+(`NameError`, linha 13), grafia errada `DDos` (linha 7) e o `concat`+`print` estão **dentro do
+loop** (indentação, linha 21). Os scripts leem os parquet do diretório atual, mas os arquivos
+estão em `data/`.
 
 Objetivo do plano: levar o projeto de "modelo binário isolado que não roda" até "pipeline
 reprodutível de 2 etapas (detecção + identificação), com métricas completas e dashboard funcional".
 
 ## Estado atual (arquivos)
 
-- `data/*.parquet` — 8 famílias: Benign, DDoS, DoS, PortScan, Botnet, Bruteforce, Infiltration, WebAttacks. Nomes "no-metadata".
-- `backend/analise_matriz.py` — pipeline RF binário até matriz de confusão (caminhos errados, sem métricas).
-- `backend/tratamento.py` — **quebrado**, será substituído.
+- `data/*.parquet` — 8 famílias: Benign, DDoS, DoS, PortScan, Botnet, Bruteforce, Infiltration, WebAttacks. Nomes "no-metadata". **`data/` está em `.gitignore` → dados não versionados** (rodar Fase 0.0 para baixá-los).
+- `backend/analise_matriz.py` — pipeline RF binário até matriz de confusão (caminhos relativos errados, salva PNG no diretório atual, sem métricas).
+- `backend/tratamento.py` — **quebrado**, será substituído (ver bugs no Contexto).
 - `images/mat_confusao.png` — saída já gerada uma vez.
+- `models/` — **ainda não existe**; será criado na Fase 2 para os artefatos `joblib`.
 
 ---
 
 ## Fase 0 — Ambiente (bloqueante)
 
-Sem isto nada roda.
+Sem isto nada roda. Como **só há Python 3.14** (incompatível com as wheels de numpy/sklearn
+fixadas) e o **`uv` já está disponível**, usar `uv` para instalar o 3.12 e criar o venv.
 
-1. Criar `requirements.txt` na raiz:
-   `pandas, numpy, scikit-learn, imbalanced-learn, matplotlib, seaborn, pyarrow, joblib, streamlit`.
-2. Instalar no venv: `.venv/Scripts/python.exe -m pip install -r requirements.txt`.
-3. **Risco:** Python 3.14 é muito novo; se faltar wheel (ex.: imbalanced-learn), fallback é
-   fixar Python 3.12 no venv. Validar com um `import` de teste de cada lib.
+**0.0 — Dados (não versionados):** garantir que `data/` contém os 8 parquet (baixar do link do
+Kaggle acima, se necessário). `data/` é gitignored de propósito (arquivos grandes).
+
+**0.1 — `requirements.txt`** na raiz, com versões fixadas para Python 3.12 (já criado).
+
+**0.2 — Recriar o venv em 3.12 com uv** (caminho recomendado):
+```powershell
+uv python install 3.12
+Remove-Item -Recurse -Force .venv          # remove o venv 3.14.6 antigo
+uv venv --python 3.12 .venv
+uv pip install -r requirements.txt         # instala no .venv
+```
+*Fallback sem uv:* instalar Python 3.12 (python.org) e
+`py -3.12 -m venv .venv ; .venv\Scripts\python.exe -m pip install -r requirements.txt`.
+
+**0.3 — Validar:**
+`.venv\Scripts\python.exe -c "import pandas, sklearn, imblearn, streamlit, seaborn, pyarrow"`
+sem erro. **Risco:** se faltar wheel para alguma lib, é sintoma de versão de Python errada
+(confirmar que o venv é 3.12, não 3.14).
 
 ## Fase 1 — Pré-processamento reutilizável (`backend/preprocessamento.py`)
 
@@ -54,77 +78,123 @@ Substitui o `tratamento.py` quebrado por funções importáveis, reaproveitadas 
 de treino e pelo dashboard. **Carrega as 8 famílias.**
 
 - `DATA_DIR = Path(__file__).parent.parent / "data"` — corrige o bug de caminho.
-- `carregar_dados()` — lê e concatena **os 8 parquet**.
-- `limpar(df)` — `inf`→`NaN` + `dropna` (a apresentação diz que os dados já vêm limpos do Kaggle;
-  manter como rede de segurança). Remover colunas de vazamento com filtro defensivo
-  `[c for c in cols if c in df.columns]` — como são "no-metadata", IP/timestamp já não existem.
+- `carregar_dados()` — lê e concatena **os 8 parquet** (lista única, `pd.concat` **após** o loop).
+- `limpar(df)` — `inf`→`NaN` + `dropna` (rede de segurança, mesmo que o Kaggle já venha limpo).
+  Remover colunas de vazamento com filtro defensivo `[c for c in cols if c in df.columns]`.
 - `criar_targets(df)` — gera **dois rótulos** a partir de `Label`:
-  - `target_bin` → 0 se `Label.strip().upper() == 'BENIGN'`, senão 1 (lógica já validada em `analise_matriz.py:35`).
+  - `target_bin` → 0 se `Label.strip().upper() == 'BENIGN'`, senão 1 (lógica validada em `analise_matriz.py:35`).
   - `target_tipo` → família do ataque (consolidar sub-rótulos: ex. `DoS Hulk`/`DoS GoldenEye`→`DoS`,
-    `FTP-Patator`/`SSH-Patator`→`Bruteforce`, `Web Attack *`→`WebAttacks`). **Verificar os valores reais
-    de `Label`** assim que o pandas estiver instalado (não deu pra inspecionar: lib ausente).
-- `preparar_features(df)` — separa X dos targets, remove colunas de variância 0 **só de X** (já corrigido em `analise_matriz.py:52`).
+    `FTP-Patator`/`SSH-Patator`→`Bruteforce`, `Web Attack *`→`WebAttacks`).
+- `preparar_features(df)` — separa X dos targets; remoção de colunas de variância 0 **ajustada no
+  treino** (não no dataset inteiro) — fazer dentro do split/Pipeline para não vazar do teste
+  (o `analise_matriz.py:52` faz no conjunto todo; aqui corrigir).
+
+### 1.A — GATE de verificação dos dados (fazer assim que o pandas estiver instalado)
+
+Resolve premissas que mudam o resto do pipeline. Rodar um script de inspeção e **anotar o
+resultado aqui**:
+- **Valores reais de `Label`** por arquivo (`value_counts`) → fecha o mapeamento de `target_tipo`.
+- **Já está normalizado?** `df.describe()` (min/max/mean). Se sim, **o `StandardScaler` é
+  dispensável p/ árvores e possivelmente p/ LogReg** — decidir aqui, não escalar "por reflexo".
+- **Há `NaN`/`inf` de fato?** (ex.: `Flow Bytes/s`) → confirma se o `dropna` é mesmo necessário.
+- **IP/Timestamp/Flow ID ainda existem?** ("no-metadata" sugere que não) → enxuga a lista de leakage.
+- **Nº de features e total de linhas** → confirma os "77 features / >2M" e dimensiona a subamostragem.
 
 ## Fase 2 — Etapa 1: Detecção binária (`backend/etapa1_deteccao.py`)
 
 "É ataque ou normal?" — treinado com **todas as 8 famílias** (todo ataque vira classe 1).
 
 1. Carregar → limpar → targets → features (Fase 1).
-2. Split estratificado **70% treino / 15% validação / 15% teste** (conforme apresentação).
-3. **SMOTE só no treino** (após o split). O dataset é grande (>2M); se ficar pesado, usar
-   `class_weight='balanced'` ou subamostrar Benign. Decidir conforme tempo de execução.
-4. `StandardScaler` ajustado **só no treino** (necessário p/ Regressão Logística; árvores dispensam).
-5. Treinar e comparar os 3 modelos da apresentação: **Decision Tree, Random Forest, Regressão Logística**
+2. **Subamostrar BENIGN** (teto p/ caber em RAM/tempo; >2M é inviável inteiro) **antes** do split.
+3. Split estratificado **70% treino / 15% validação / 15% teste** (conforme apresentação).
+4. **Balanceamento da Etapa 1:** preferir `class_weight='balanced'` (DT/RF/LogReg) **+ subamostragem**.
+   **Não usar SMOTE aqui** (oversampling sintético contra milhões de BENIGN é inviável).
+5. `StandardScaler` ajustado **só no treino** e **apenas se a Fase 1.A indicar necessidade**
+   (obrigatório p/ LogReg se os dados não estiverem normalizados; árvores dispensam).
+6. Treinar e comparar os 3 modelos: **Decision Tree, Random Forest, Regressão Logística**
    (RF é o principal — reaproveitar config de `analise_matriz.py:61`).
-6. **Métricas (Seção 4):** `classification_report` (Precisão/Recall/F1) no conjunto de teste,
-   `confusion_matrix` + heatmap em `images/mat_confusao_deteccao.png`, e importância das features (top-N do RF).
-7. Salvar artefatos com `joblib` em `models/` (modelo de detecção, scaler, lista de colunas).
+7. **Seleção:** comparar no conjunto de **validação**; **prioridade = Recall da classe Ataque**
+   (minimizar falsos negativos). Considerar **ajustar o limiar** do `predict_proba` (não fixar 0.5)
+   na validação para atingir um Recall-alvo.
+8. **Métricas (no teste):** `classification_report` (Precisão/Recall/F1), `confusion_matrix` +
+   heatmap em `images/mat_confusao_deteccao.png`, e importância das features (top-N do RF).
+9. Salvar artefatos com `joblib` em `models/` (modelo, scaler — se usado, e **lista de colunas de treino**).
 
 ## Fase 3 — Etapa 2: Identificação do tipo (`backend/etapa2_identificacao.py`)
 
 Multiclasse, treinado **apenas no tráfego malicioso** (filtra `target_bin == 1`) usando `target_tipo`.
 
 1. Reusar a Fase 1; filtrar só os ataques.
-2. Mesmo split 70/15/15 estratificado por tipo.
-3. SMOTE só no treino — atenção ao forte desbalanceamento entre famílias (Infiltration é minúscula vs. DDoS/PortScan).
-4. Treinar e comparar DT / RF / Regressão Logística (multinomial).
+2. **Atenção às classes ultra-raras** (ex.: Infiltration). Um holdout único de 15% deixa pouquíssimos
+   exemplos no teste → preferir **StratifiedKFold** para avaliação, e/ou reportar sempre o *support*
+   por classe. Avaliar fundir classes minúsculas se inviável estatisticamente.
+3. **SMOTE só no treino** (base menor, faz sentido aqui) para as famílias raras; alternativa
+   `class_weight='balanced'`. Ver Fase 4 sobre SMOTE dentro do CV.
+4. Treinar e comparar DT / RF / Regressão Logística (multinomial). **Métrica de seleção = macro-F1**
+   (dá peso igual às classes raras).
 5. **Métricas:** `classification_report` por classe + `confusion_matrix` **NxN** em `images/mat_confusao_tipo.png`.
-6. Salvar o modelo de identificação em `models/`.
+6. Salvar o modelo e o **mapa de classes** em `models/`.
 
 ## Fase 4 — Validação e ajuste de hiperparâmetros
 
-Conforme a apresentação (Grid Search / Random Search), nas duas etapas:
+Conforme a apresentação (Grid/Random Search), nas duas etapas:
 
-- Usar o conjunto de **validação (15%)** para seleção; reportar o desempenho final só no **teste (15%)**.
-- `GridSearchCV` ou `RandomizedSearchCV` para os hiperparâmetros principais (RF: `n_estimators`,
-  `max_depth`; LogReg: `C`). Pode rodar em subamostra para caber no tempo.
+- **Evitar vazamento no tuning:** montar um **`imblearn.pipeline.Pipeline([scaler, smote, clf])`**
+  e passar o Pipeline ao search, para que **scaler e SMOTE sejam reajustados em cada fold** do CV.
+  (Aplicar SMOTE uma vez antes do `GridSearchCV` vaza amostras sintéticas para os folds de validação.)
+- Usar **`RandomizedSearchCV`** (mais barato que GridSearch no volume deste dataset), em **subamostra**
+  se necessário. Espaço de busca enxuto: RF (`n_estimators`, `max_depth`, `max_features`),
+  LogReg (`C`), DT (`max_depth`, `min_samples_leaf`).
+- Papéis dos conjuntos: **CV interno** (no treino) p/ hiperparâmetros; **validação (15%)** p/ comparar
+  modelos/limiar; **teste (15%)** intocado p/ o número final.
+- **Avaliação cascata fim-a-fim (reflete o dashboard):** rodar o **teste** por Etapa 1 → (se ataque)
+  Etapa 2 e reportar a performance combinada por tipo, **incluindo os ataques perdidos pela Etapa 1**
+  (bucket "não detectado"). É a métrica honesta do sistema de 2 estágios.
 
 ## Fase 5 — Dashboard Streamlit (`frontend/app.py`)
 
 Front-end refletindo o pipeline de 2 etapas:
 
-- `st.file_uploader` para CSV → mesmo pré-processamento (Fase 1) → carrega os 2 modelos (`joblib.load`).
+- `st.file_uploader` para CSV → **normalizar nomes de colunas** (CICIDS real tem espaços nos headers,
+  ex. `' Flow Duration'`) → mesmo pré-processamento da Fase 1 → **reindexar para a lista de colunas
+  salva no treino** (tratar colunas ausentes/extras) → aplicar o `scaler` salvo (se usado) → carregar
+  os 2 modelos (`joblib.load`).
 - **Fluxo:** Etapa 1 marca cada fluxo como Normal/Ataque; para os marcados como Ataque, Etapa 2 informa o **tipo**.
 - Painel de alertas **vermelho/verde** por fluxo; quando vermelho, exibir o tipo de ataque identificado.
 - Gráficos dinâmicos do volume de tráfego e distribuição por tipo de ataque.
 - Métricas de confiança via `predict_proba`.
 - Nota de **supervisão humana** no resultado (reflexão ética da apresentação).
-- Rodar com `.venv/Scripts/python.exe -m streamlit run frontend/app.py`.
+- `@st.cache_resource` para carregar os modelos uma única vez.
+- Rodar com `.venv\Scripts\python.exe -m streamlit run frontend/app.py`.
 
 ---
 
 ## Verificação (end-to-end)
 
-1. `.venv/Scripts/python.exe -c "import pandas, sklearn, imblearn, streamlit, seaborn"` — sem erro.
-2. `.venv/Scripts/python.exe backend/etapa1_deteccao.py` — imprime `classification_report` (Precisão/Recall/F1),
-   gera `images/mat_confusao_deteccao.png` + importância, e salva o modelo de detecção em `models/`.
-3. `.venv/Scripts/python.exe backend/etapa2_identificacao.py` — `classification_report` por tipo + matriz NxN em `images/mat_confusao_tipo.png`.
-4. Conferir que o **Recall da classe Ataque** (Etapa 1) é alto (evitar falsos negativos — prioridade da apresentação).
-5. `streamlit run frontend/app.py` → subir CSV de teste → ver detecção + tipo + painel de alertas funcionando.
+1. `.venv\Scripts\python.exe -c "import pandas, sklearn, imblearn, streamlit, seaborn, pyarrow"` — sem erro.
+2. Rodar a inspeção da **Fase 1.A** e anotar `Label`/normalização/NaN/nº de features no plano.
+3. `.venv\Scripts\python.exe backend/etapa1_deteccao.py` — imprime `classification_report`,
+   gera `images/mat_confusao_deteccao.png` + importância, e salva modelo/colunas em `models/`.
+4. `.venv\Scripts\python.exe backend/etapa2_identificacao.py` — `classification_report` por tipo
+   (com *support*) + matriz NxN em `images/mat_confusao_tipo.png`.
+5. Conferir que o **Recall da classe Ataque** (Etapa 1) é alto (evitar falsos negativos — prioridade).
+6. **Cascata fim-a-fim** (Fase 4): rodar o teste por Etapa1→Etapa2 e conferir a matriz combinada.
+7. `streamlit run frontend/app.py` → subir CSV de teste → ver detecção + tipo + painel de alertas.
 
-## Observações / decisões em aberto
+## Observações / decisões
 
-- `backend/analise_matriz.py`: será absorvido pela Etapa 1. Manter como referência ou **deletar** — confirmar na execução.
-- Volume (>2M registros) pode exigir subamostragem para treino/Grid Search rodarem em tempo razoável.
-- **Verificar os valores reais de `Label`** para montar o mapeamento de famílias da Etapa 2 (pendente: pandas não estava instalado).
-- Estrutura de pastas: `backend/` (lógica), `frontend/` (Streamlit), `models/` (artefatos), `requirements.txt` (raiz).
+- `backend/analise_matriz.py`: **extrair** as partes reutilizáveis (lógica do Target, lista de leakage,
+  heatmap) para `preprocessamento.py`/utilidades e então **aposentar** o script (mover p/ `legacy/` ou
+  deletar) para não haver duas fontes de verdade.
+- `data/` é gitignored → documentar no README de onde baixar (link do Kaggle). `models/` precisa existir
+  (criar com `.gitkeep` ou via script).
+- Volume (>2M) exige subamostragem para treino/Search rodarem em tempo razoável.
+- Decisão de **escalar ou não** depende da Fase 1.A (não escalar por reflexo se já vier normalizado).
+
+## Histórico de revisão
+
+- **2026-06-28 (revisão):** corrigida a Fase 0 (só há Python 3.14; usar `uv` para o 3.12);
+  adicionado GATE de verificação de dados (Fase 1.A); SMOTE movido p/ dentro do Pipeline no CV e
+  restrito à Etapa 2; balanceamento da Etapa 1 via subamostragem+`class_weight`; classes raras e
+  macro-F1 na Etapa 2; avaliação cascata fim-a-fim; normalização de headers/reindex no dashboard;
+  notas sobre dados não versionados e destino do `analise_matriz.py`.
