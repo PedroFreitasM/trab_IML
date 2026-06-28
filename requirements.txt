@@ -29,7 +29,7 @@ imbalanced-learn==0.12.3 # SMOTE / balanceamento
 joblib==1.4.2            # persistencia de modelos em models/
 
 # --- Visualizacao (matrizes de confusao / importancia de features) ---
-matplotlib==3.9.1
+matplotlib==3.9.2
 seaborn==0.13.2
 
 # --- Dashboard ---
