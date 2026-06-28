@@ -2,8 +2,7 @@
 Pre-processamento reutilizavel do pipeline CICIDS2017 (2 etapas).
 
 Define o CONTRATO 1 (ver TASKS.md): funcoes importadas pelos scripts de treino
-(Etapa 1 / Etapa 2) e pelo dashboard. Implementacao base pronta; itens marcados
-TODO(A2)/TODO(A4) cabem ao Track A finalizar apos inspecionar os dados.
+(Etapa 1 / Etapa 2) e pelo dashboard.
 
 IMPORTANTE (anti-leakage): StandardScaler, filtro de variancia, SMOTE e tuning
 NAO ficam aqui -- pertencem ao Pipeline de treino (Track B, Fase 4) e devem ser
@@ -34,23 +33,27 @@ ARQUIVOS = [
 
 # Filtro defensivo de vazamento (os arquivos "no-metadata" provavelmente ja nao
 # tem estas colunas). Mesma lista de analise_matriz.py.
-# TODO(A2): decidir se 'Destination Port'/'Protocol' tambem devem sair.
 COLUNAS_VAZAMENTO = [
     "Source IP", "Destination IP", "Source Port", "Timestamp", "Flow ID", "Label",
 ]
 
-# Mapa PRELIMINAR de Label -> familia (chave em MAIUSCULAS, sem espacos nas bordas).
-# TODO(A2): confirmar/fechar com os valores reais de df['Label'].unique().
+# Mapa COMPLETO de Label -> familia (chave em MAIUSCULAS, sem espacos nas bordas).
 MAPA_FAMILIAS = {
+    "BENIGN": "Benign",
     "DDOS": "DDoS",
-    "DOS HULK": "DoS", "DOS GOLDENEYE": "DoS", "DOS SLOWLORIS": "DoS",
-    "DOS SLOWHTTPTEST": "DoS", "HEARTBLEED": "DoS",
+    "DOS HULK": "DoS",
+    "DOS GOLDENEYE": "DoS",
+    "DOS SLOWLORIS": "DoS",
+    "DOS SLOWHTTPTEST": "DoS",
+    "HEARTBLEED": "DoS",
     "PORTSCAN": "PortScan",
     "BOT": "Botnet",
-    "FTP-PATATOR": "Bruteforce", "SSH-PATATOR": "Bruteforce",
-    "WEB ATTACK - BRUTE FORCE": "WebAttacks", "WEB ATTACK - XSS": "WebAttacks",
-    "WEB ATTACK - SQL INJECTION": "WebAttacks",
+    "FTP-PATATOR": "Bruteforce",
+    "SSH-PATATOR": "Bruteforce",
     "INFILTRATION": "Infiltration",
+    "WEB ATTACK \uFFFD BRUTE FORCE": "WebAttacks",
+    "WEB ATTACK \uFFFD XSS": "WebAttacks",
+    "WEB ATTACK \uFFFD SQL INJECTION": "WebAttacks",
 }
 
 
@@ -77,16 +80,11 @@ def _mapear_familia(label: str) -> str:
     chave = str(label).strip().upper()
     if chave in MAPA_FAMILIAS:
         return MAPA_FAMILIAS[chave]
-    # Fallback por palavra-chave (robusto a grafias). TODO(A2): trocar por mapa fechado.
-    for termo, familia in (
-        ("DDOS", "DDoS"), ("DOS", "DoS"), ("PORT", "PortScan"), ("BOT", "Botnet"),
-        ("PATATOR", "Bruteforce"), ("BRUTE", "Bruteforce"), ("WEB", "WebAttacks"),
-        ("XSS", "WebAttacks"), ("SQL", "WebAttacks"), ("INFIL", "Infiltration"),
-        ("HEART", "DoS"),
-    ):
-        if termo in chave:
-            return familia
-    return "Outro"
+    # Guard robusto: os rotulos de Web Attack contem um byte lido como U+FFFD.
+    # Casar pelo prefixo evita quebrar se a codificacao do parquet mudar.
+    if chave.startswith("WEB ATTACK"):
+        return "WebAttacks"
+    raise ValueError(f"Label '{label}' (chave '{chave}') nao esta mapeada no MAPA_FAMILIAS!")
 
 
 def criar_targets(df: pd.DataFrame) -> pd.DataFrame:
@@ -120,6 +118,22 @@ def split(X, y, val: float = 0.15, teste: float = 0.15, seed: int = 42) -> dict:
             "y_train": y_train, "y_val": y_val, "y_test": y_test}
 
 
+def filtrar_variancia_zero(
+    X_train: pd.DataFrame, X_val: pd.DataFrame, X_test: pd.DataFrame
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Identifica colunas de variancia zero apenas em X_train e as remove das 3 particoes.
+
+    Evita vazamento de dados (data leakage) aplicando a estatistica calculada apenas no treino.
+    """
+    variancias = X_train.var()
+    colunas_zero = variancias[variancias == 0].index.tolist()
+    if colunas_zero:
+        X_train = X_train.drop(columns=colunas_zero)
+        X_val = X_val.drop(columns=colunas_zero)
+        X_test = X_test.drop(columns=colunas_zero)
+    return X_train, X_val, X_test
+
+
 # ---- Contrato 2: bundle de modelo (compartilhado por Track B e C) ----
 def salvar_bundle(caminho, modelo, colunas, scaler=None, classes=None, limiar=0.5) -> None:
     """Salva um bundle de inferencia auto-suficiente (ver Contrato 2 no TASKS.md)."""
@@ -144,6 +158,11 @@ if __name__ == "__main__":
     print("NaN restantes:", int(df.isna().sum().sum()))
     print("\ntarget_bin:\n", df["target_bin"].value_counts())
     print("\ntarget_tipo:\n", df["target_tipo"].value_counts())
-    if (df["target_tipo"] == "Outro").any():
-        print("\n[ATENCAO] Ha rotulos nao mapeados (familia 'Outro'). "
-              "Ajustar MAPA_FAMILIAS -- TODO(A2).")
+
+    print("\nExecutando split e filtrando colunas com variancia zero...")
+    X, y = preparar_features(df, alvo="target_tipo")
+    particoes = split(X, y)
+    X_tr_f, X_va_f, X_te_f = filtrar_variancia_zero(particoes["X_train"], particoes["X_val"], particoes["X_test"])
+    print(f"Original shape: {particoes['X_train'].shape}, Filtered shape: {X_tr_f.shape}")
+    colunas_removidas = set(particoes["X_train"].columns) - set(X_tr_f.columns)
+    print(f"Colunas removidas ({len(colunas_removidas)}): {sorted(list(colunas_removidas))}")

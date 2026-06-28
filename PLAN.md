@@ -100,6 +100,34 @@ resultado aqui**:
 - **IP/Timestamp/Flow ID ainda existem?** ("no-metadata" sugere que não) → enxuga a lista de leakage.
 - **Nº de features e total de linhas** → confirma os "77 features / >2M" e dimensiona a subamostragem.
 
+#### RESULTADOS (verificado em 2026-06-28, contra os 8 parquet)
+
+- **`Label` (15 valores) → `MAPA_FAMILIAS` COMPLETO** (todos mapeiam, 0 falhas). Os rótulos de
+  Web Attack contêm de fato o byte `U+FFFD` (`'Web Attack � Brute Force'`); as chaves do mapa estão
+  corretas. `_mapear_familia` ganhou um guard por prefixo (`startswith("WEB ATTACK")`) como rede de segurança.
+- **NÃO está normalizado** — 59/77 colunas com valores fora de [0,1]. ⇒ **`StandardScaler` é
+  OBRIGATÓRIO para a Regressão Logística (Track B)**; árvores dispensam. (Corrige a premissa antiga
+  de "valores normalizados", que estava **errada**.)
+- **Sem `NaN`/`Inf`** no arquivo testado (PortScan) → `limpar()` permanece como rede de segurança.
+- **Metadados ausentes:** das colunas de vazamento, só `Label` existe (sem IP/Timestamp/Flow ID/Dest Port);
+  `Protocol` está presente e é mantido como feature.
+- **78 colunas (77 features + `Label`); 2.313.810 linhas; BENIGN = 85,5%.** Distribuição por família:
+
+| Família | Linhas | % | Observação |
+|---|--:|--:|---|
+| Benign | 1.977.318 | 85,46% | majoritária → subamostrar (Etapa 1) |
+| DoS | 193.756 | 8,37% | inclui Heartbleed (11) |
+| DDoS | 128.014 | 5,53% | |
+| Bruteforce | 9.150 | 0,40% | FTP/SSH-Patator |
+| WebAttacks | 2.143 | 0,093% | BF/XSS/SQLi |
+| PortScan | 1.956 | 0,085% | |
+| Botnet | 1.437 | 0,062% | |
+| Infiltration | **36** | 0,0016% | **ultra-raro** |
+
+> **Aviso à Track B:** (1) dados **não normalizados** → `StandardScaler` no Pipeline (fit só no
+> treino) para a Regressão Logística; (2) **Infiltration (36 linhas)** inviabiliza holdout único na
+> Etapa 2 → usar **StratifiedKFold** + **macro-F1** e reportar *support*; SMOTE apenas no treino.
+
 ## Fase 2 — Etapa 1: Detecção binária (`backend/etapa1_deteccao.py`)
 
 "É ataque ou normal?" — treinado com **todas as 8 famílias** (todo ataque vira classe 1).
@@ -109,8 +137,8 @@ resultado aqui**:
 3. Split estratificado **70% treino / 15% validação / 15% teste** (conforme apresentação).
 4. **Balanceamento da Etapa 1:** preferir `class_weight='balanced'` (DT/RF/LogReg) **+ subamostragem**.
    **Não usar SMOTE aqui** (oversampling sintético contra milhões de BENIGN é inviável).
-5. `StandardScaler` ajustado **só no treino** e **apenas se a Fase 1.A indicar necessidade**
-   (obrigatório p/ LogReg se os dados não estiverem normalizados; árvores dispensam).
+5. `StandardScaler` ajustado **só no treino** — **obrigatório p/ LogReg** (dados NÃO normalizados,
+   confirmado no GATE 1.A); árvores (DT/RF) dispensam.
 6. Treinar e comparar os 3 modelos: **Decision Tree, Random Forest, Regressão Logística**
    (RF é o principal — reaproveitar config de `analise_matriz.py:61`).
 7. **Seleção:** comparar no conjunto de **validação**; **prioridade = Recall da classe Ataque**

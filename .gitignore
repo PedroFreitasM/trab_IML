@@ -3,3 +3,4 @@ data/*
 __pycache__/
 models/*.joblib
 !models/.gitkeep
+backend/inspecao_resultado.txt
