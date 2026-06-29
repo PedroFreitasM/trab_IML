@@ -53,10 +53,6 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
 
 print("CARREGAMENTO DOS DADOS")
 
-# ---------------------------------------------------------------
-# Mapeamento de todos os arquivos .parquet a serem carregados
-# Para adicionar mais no futuro, basta incluir o caminho aqui
-# ---------------------------------------------------------------
 arquivos_parquet = [
     'data/Benign-Monday-no-metadata.parquet',
     'data/DDoS-Friday-no-metadata.parquet',
@@ -68,9 +64,6 @@ arquivos_parquet = [
     'data/DoS-Wednesday-no-metadata.parquet',
 ]
 
-# Carrega e concatena todos os arquivos de forma eficiente,
-# otimizando e limpando cada um individualmente antes de unir
-# (evita estourar a RAM ao carregar tudo de uma vez)
 chunks = []
 for caminho in arquivos_parquet:
     nome_arquivo = caminho.split('/')[-1]
