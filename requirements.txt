@@ -1,0 +1,36 @@
+# =====================================================================
+# Dependencias - Deteccao e Identificacao de Anomalias (CICIDS2017)
+# =====================================================================
+# Alvo: Python 3.12 (estavel para scikit-learn / imbalanced-learn).
+# ATENCAO: nesta maquina so existe Python 3.14 -> numpy 1.26/sklearn 1.5
+# nao tem wheel para 3.14. Usar uv (ja instalado) para baixar o 3.12 e
+# recriar o venv (Fase 0 do PLAN.md):
+#
+#   uv python install 3.12
+#   Remove-Item -Recurse -Force .venv
+#   uv venv --python 3.12 .venv
+#   uv pip install -r requirements.txt
+#
+# Fallback sem uv: instalar Python 3.12 (python.org) e
+#   py -3.12 -m venv .venv ; .venv\Scripts\python.exe -m pip install -r requirements.txt
+#
+# Validar:
+#   .venv\Scripts\python.exe -c "import pandas, sklearn, imblearn, streamlit, seaborn, pyarrow"
+# =====================================================================
+
+# --- Manipulacao de dados ---
+pandas==2.2.2
+numpy==1.26.4
+pyarrow==17.0.0          # leitura dos data/*.parquet
+
+# --- Machine Learning ---
+scikit-learn==1.5.1
+imbalanced-learn==0.12.3 # SMOTE / balanceamento
+joblib==1.4.2            # persistencia de modelos em models/
+
+# --- Visualizacao (matrizes de confusao / importancia de features) ---
+matplotlib==3.9.2
+seaborn==0.13.2
+
+# --- Dashboard ---
+streamlit==1.37.0
