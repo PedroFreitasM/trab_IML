@@ -78,10 +78,10 @@ def carregar_modelos(tipo_modelo):
 
 def normalizar_colunas(df):
     """
-    Remove espaços das pontas, normaliza maiúsculas/minúsculas para evitar 
-    erros de tipografia comuns no dataset original (ex: ' Flow Duration').
+    Remove espaços das pontas das colunas para alinhar com o preprocessamento.
     """
-    df.columns = df.columns.str.strip().str.lower().str.replace(' ', '_')
+    df = df.copy()
+    df.columns = df.columns.str.strip()
     return df
 
 # -----------------------------------------------------------------------------
@@ -218,10 +218,25 @@ if arquivo_csv is not None:
     colunas_presentes = [col for col in colunas_exibicao if col in df_resultados.columns]
     df_exibicao = df_resultados[colunas_presentes].copy()
     
-    # Se houver metadados originais como IPs e Portas (ainda que no CICIDS sejam filtrados, se existirem na amostra, mostrar)
-    colunas_contexto = [c for c in ['source_ip', 'destination_ip', 'destination_port', 'protocol'] if c in df_clean.columns]
-    if colunas_contexto:
-        df_exibicao = pd.concat([df_clean[colunas_contexto], df_exibicao], axis=1)
+    # Se houver metadados originais como IPs e Portas (que são filtrados antes do modelo, mas úteis para exibição)
+    mapa_meta = {
+        'Source IP': ['Source IP', 'Src IP', 'source_ip', 'src_ip'],
+        'Destination IP': ['Destination IP', 'Dst IP', 'destination_ip', 'dst_ip'],
+        'Destination Port': ['Destination Port', 'Dst Port', 'destination_port', 'dst_port'],
+        'Protocol': ['Protocol', 'protocol']
+    }
+    
+    colunas_contexto_presentes = []
+    df_meta = pd.DataFrame(index=df_clean.index)
+    for nome_amigavel, possiveis_nomes in mapa_meta.items():
+        for nome in possiveis_nomes:
+            if nome in df_clean.columns:
+                df_meta[nome_amigavel] = df_clean[nome]
+                colunas_contexto_presentes.append(nome_amigavel)
+                break
+                
+    if colunas_contexto_presentes:
+        df_exibicao = pd.concat([df_meta, df_exibicao], axis=1)
 
     st.dataframe(
         df_exibicao.style.map(colorir_alerta, subset=['Alerta (Etapa 1)']),
