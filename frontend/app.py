@@ -37,20 +37,44 @@ st.title("🛡️ Sistema de Detecção e Identificação de Intrusões")
 st.markdown("Análise de fluxo de tráfego em duas etapas: **Detecção Binária** e **Classificação de Tipo**.")
 
 # -----------------------------------------------------------------------------
+# Configurações da Barra Lateral (Sidebar)
+# -----------------------------------------------------------------------------
+st.sidebar.header("Configurações do Modelo")
+modelo_selecionado = st.sidebar.radio(
+    "Selecione o Algoritmo:",
+    ("Random Forest", "Regressão Logística")
+)
+
+st.sidebar.markdown("---")
+st.sidebar.header("Upload de Tráfego")
+arquivo_csv = st.sidebar.file_uploader("Envie o tráfego de rede (CSV)", type=["csv"])
+
+# -----------------------------------------------------------------------------
 # Funções de Carregamento e Processamento
 # -----------------------------------------------------------------------------
 @st.cache_resource
-def carregar_modelos():
-    """Carrega os bundles gerados pelas Tracks B e salva em cache na memória."""
-    caminho_e1 = os.path.join("models", "etapa1.joblib")
-    caminho_e2 = os.path.join("models", "etapa2.joblib")
+def carregar_modelos(tipo_modelo):
+    """Carrega os bundles baseados na escolha do usuário usando caminhos absolutos."""
+    if tipo_modelo == "Random Forest":
+        prefixo = "rf"
+    else:
+        prefixo = "lr" # Logistic Regression
+    
+    # Pega o caminho absoluto da pasta onde o app.py está (frontend/)
+    diretorio_atual = os.path.dirname(os.path.abspath(__file__))
+    # Volta uma pasta para a raiz do projeto (trab_IML/)
+    diretorio_raiz = os.path.dirname(diretorio_atual)
+    
+    # Constrói o caminho absoluto até a pasta models
+    caminho_e1 = os.path.join(diretorio_raiz, "models", f"{prefixo}_etapa1.joblib")
+    caminho_e2 = os.path.join(diretorio_raiz, "models", f"{prefixo}_etapa2.joblib")
     
     if not os.path.exists(caminho_e1) or not os.path.exists(caminho_e2):
-        return None, None
+        return None, None, caminho_e1, caminho_e2
         
     bundle1 = joblib.load(caminho_e1)
     bundle2 = joblib.load(caminho_e2)
-    return bundle1, bundle2
+    return bundle1, bundle2, caminho_e1, caminho_e2
 
 def normalizar_colunas(df):
     """
@@ -63,14 +87,13 @@ def normalizar_colunas(df):
 # -----------------------------------------------------------------------------
 # Lógica Principal da Interface
 # -----------------------------------------------------------------------------
-bundle_etapa1, bundle_etapa2 = carregar_modelos()
+# Passa a escolha do usuário para a função carregar os arquivos certos
+bundle_etapa1, bundle_etapa2, path_e1, path_e2 = carregar_modelos(modelo_selecionado)
 
 if bundle_etapa1 is None or bundle_etapa2 is None:
-    st.error("🚨 **Modelos não encontrados!** Certifique-se de que `models/etapa1.joblib` e `models/etapa2.joblib` existem. Execute os scripts da Track B ou o gerador de bundles falsos primeiro.")
+    st.error(f"🚨 **Modelos não encontrados para {modelo_selecionado}!**")
+    st.warning(f"Certifique-se de que os arquivos `{path_e1}` e `{path_e2}` existem na pasta `models/`.")
     st.stop()
-
-st.sidebar.header("Upload de Tráfego")
-arquivo_csv = st.sidebar.file_uploader("Envie o tráfego de rede (CSV)", type=["csv"])
 
 if arquivo_csv is not None:
     # 1. Carregamento e pré-processamento básico
@@ -124,7 +147,6 @@ if arquivo_csv is not None:
         preds_e2 = modelo2.predict(X2)
         probs_e2 = np.max(modelo2.predict_proba(X2), axis=1)
         
-        # Mapeamento de classes (se existirem) ou uso direto das predições
         # Mapeamento de classes (se existirem) ou uso direto das predições
         if "classes" in bundle_etapa2:
             preds_nome = [
@@ -191,7 +213,10 @@ if arquivo_csv is not None:
     
     # Monta a tabela final combinando infos vitais
     colunas_exibicao = ["Alerta (Etapa 1)", "Confiança_Anomalia", "Tipo de Ataque (Etapa 2)", "Confiança_Tipo"]
-    df_exibicao = df_resultados[colunas_exibicao].copy()
+    
+    # CORREÇÃO APLICADA: Filtra de forma segura pegando apenas as colunas que realmente foram criadas
+    colunas_presentes = [col for col in colunas_exibicao if col in df_resultados.columns]
+    df_exibicao = df_resultados[colunas_presentes].copy()
     
     # Se houver metadados originais como IPs e Portas (ainda que no CICIDS sejam filtrados, se existirem na amostra, mostrar)
     colunas_contexto = [c for c in ['source_ip', 'destination_ip', 'destination_port', 'protocol'] if c in df_clean.columns]
