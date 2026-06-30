@@ -227,7 +227,7 @@ def main():
             print(f"{col:<35}: {imp:.4f}")
             
     # 11. Salvar o bundle
-    caminho_bundle = MODELS_DIR / "etapa1.joblib"
+    caminho_bundle = MODELS_DIR / "rf_etapa1.joblib"
     print(f"\nSalvando o bundle do modelo em: {caminho_bundle}")
     salvar_bundle(
         caminho=caminho_bundle,

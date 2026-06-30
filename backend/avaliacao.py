@@ -33,11 +33,11 @@ def main():
     print("=== AVALIAÇÃO EM CASCATA FIM-A-FIM ===")
     
     # 1. Carregar bundles dos modelos
-    caminho_e1 = MODELS_DIR / "etapa1.joblib"
-    caminho_e2 = MODELS_DIR / "etapa2.joblib"
+    caminho_e1 = MODELS_DIR / "rf_etapa1.joblib"
+    caminho_e2 = MODELS_DIR / "rf_etapa2.joblib"
     
     if not caminho_e1.exists() or not caminho_e2.exists():
-        print("Erro: Os bundles etapa1.joblib e/ou etapa2.joblib não foram encontrados em models/")
+        print("Erro: Os bundles rf_etapa1.joblib e/ou rf_etapa2.joblib não foram encontrados em models/")
         print("Por favor, execute etapa1_deteccao.py e etapa2_identificacao.py primeiro.")
         return
         

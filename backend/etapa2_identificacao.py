@@ -173,7 +173,7 @@ def main():
         
     # 9. Salvar o bundle
     # Nota: salvamos o pipeline completo como o "modelo", pois ele encapsula a transformação de variância
-    caminho_bundle = MODELS_DIR / "etapa2.joblib"
+    caminho_bundle = MODELS_DIR / "rf_etapa2.joblib"
     print(f"\nSalvando o bundle do modelo multiclasse em: {caminho_bundle}")
     
     # Para o contrato, salvamos o pipeline final como o modelo. 
