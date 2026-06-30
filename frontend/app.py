@@ -232,4 +232,3 @@ if arquivo_csv is not None:
 else:
     # Estado inicial (sem arquivo)
     st.write("Aguardando arquivo CSV para iniciar a análise...")
-    st.info("💡 Dica: Você pode usar o arquivo `data/amostra.parquet` (convertido para CSV) gerado pela Track A para testar a interface.")
