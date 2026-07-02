@@ -66,7 +66,7 @@ Começa contra o Contrato 1 + `amostra.parquet`. Usa `visualizacao.plotar_matriz
   `colunas` salvas** + `carregar_bundle` (contra o **bundle falso**). _(Fase 5)_
 - **C2** Fluxo 2 etapas + confiança (`predict_proba`) + alertas **vermelho/verde** + KPIs. _(Fase 5)_
 - **C3** Gráficos dinâmicos (volume, distribuição por tipo) + nota de **supervisão humana**. _(Fase 5)_
-- **C4** `visualizacao.py` (heatmap extraído de `analise_matriz.py`, **reusado por B**) +
+- **C4** `visualizacao.py` (heatmap reutilizável, **reusado por B**) +
   README "como rodar" + doc de download dos dados.
 - **C5** `@st.cache_resource`, polimento, figuras para o relatório. _(Fase 5)_
 

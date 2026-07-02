@@ -32,7 +32,7 @@ ARQUIVOS = [
 ]
 
 # Filtro defensivo de vazamento (os arquivos "no-metadata" provavelmente ja nao
-# tem estas colunas). Mesma lista de analise_matriz.py.
+# tem estas colunas).
 COLUNAS_VAZAMENTO = [
     "Source IP", "Destination IP", "Source Port", "Timestamp", "Flow ID", "Label",
 ]
