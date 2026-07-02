@@ -16,38 +16,60 @@ O modelo focará nas variáveis mais importantes para o escopo, como `Flow Durat
 
 
 * **Modelagem:**
-1. 
-*Decision Tree:* Para interpretabilidade
+1. *Random Forest:* Método principal que lida com alta dimensionalidade, captura relações não lineares e oferece índice de importância de variáveis.
+2. *Regressão Logística:* Modelo de *baseline* linear com velocidade de inferência superior.
+3. *Árvore de Decisão (Interpretabilidade):* Árvore rasa dedicada à explicabilidade, permitindo a extração de regras textuais de decisão e plotagem visual das ramificações.
 
-2.
-*Random Forest:* Método principal que lida com alta dimensionalidade, captura relações não lineares e oferece índice de importância de variáveis.
-
-3. 
-*Regressão Logística:* Modelo de *baseline* linear com velocidade de inferência superior.
-
-
-4. 
-*Isolation Forest (talvez?):* Abordagem não supervisionada que sinaliza desvios do padrão normal.
-
-
-* **Validação e Teste:** Divisão dos dados em 70% para treino, 15% para validação e 15% para testes (ou K-Fold). Os hiperparâmetros serão otimizados via `GridSearchCV` ou `RandomizedSearchCV`.
-
-
+* **Validação e Teste:** Divisão dos dados em 70% para treino, 15% para validação e 15% para testes (ou K-Fold). Os hiperparâmetros são otimizados via `GridSearchCV` dentro de um pipeline anti-leakage da biblioteca `imblearn`.
 
 ## 4. Avaliação e Métricas
 
-Devido ao desbalanceamento dos dados, a acurácia isolada é inadequada. A avaliação utilizará a Matriz de Confusão  e as métricas:
-
+Devido ao desbalanceamento dos dados, a acurácia isolada é inadequada. A avaliação utiliza a Matriz de Confusão e as métricas:
 * **Recall:** Fundamental para garantir que os ataques não passem despercebidos.
-
-
 * **Precision:** Vital para evitar falsos alertas e a fadiga do operador.
-
-
 * **F1-Score:** Média harmônica ideal para validar a qualidade geral do modelo.
-
-
 
 ## 5. Interface e Visualização (Front-end)
 
-Consiste em um Dashboard interativo em **Streamlit** que permite o upload de arquivos CSV , exibe gráficos dinâmicos do volume de tráfego , apresenta painéis com alertas visuais (vermelho/verde) para DDoS e mostra as métricas de confiança das predições.
+Consiste em um Dashboard interativo em **Streamlit** que permite a seleção do algoritmo (Random Forest, Regressão Logística ou Árvore de Decisão), o upload de arquivos CSV, exibe gráficos dinâmicos do volume de tráfego e distribuição de tipos de ataques, apresenta painéis com alertas visuais (vermelho/verde), exibe métricas de confiança e, no caso da Árvore de Decisão, expõe regras de negócios e visualização de caminhos.
+
+## 6. Como Executar o Projeto
+
+### Pré-requisitos
+Certifique-se de ter o Python 3.12 configurado. Se possuir a ferramenta `uv`, execute:
+```bash
+uv venv --python 3.12 .venv
+uv pip install -r requirements.txt
+```
+
+### Passo 1: Gerar Bundles Falsos (Opcional - Apenas para rodar o Dashboard sem treinar)
+```bash
+.venv/Scripts/python.exe backend/gerar_bundle_falso.py
+```
+
+### Passo 2: Treinar os Modelos Reais
+Para treinar os modelos e gerar os bundles em `models/`:
+- **Modelos Principais (Random Forest & Regressão Logística):**
+  ```bash
+  .venv/Scripts/python.exe backend/etapa1_deteccao.py
+  .venv/Scripts/python.exe backend/etapa2_identificacao.py
+  ```
+- **Árvores de Decisão (Interpretabilidade):**
+  ```bash
+  .venv/Scripts/python.exe backend/dt_interpretabilidade.py
+  ```
+
+### Passo 3: Executar a Avaliação Fim-a-Fim
+```bash
+.venv/Scripts/python.exe backend/avaliacao.py
+```
+
+### Passo 4: Executar o Dashboard Streamlit
+```bash
+.venv/Scripts/python.exe -m streamlit run frontend/app.py
+```
+
+### Executar a Suíte de Testes
+```bash
+.venv/Scripts/python.exe -m unittest discover -s backend
+```

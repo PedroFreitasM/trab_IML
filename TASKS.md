@@ -55,6 +55,7 @@ Cada etapa salva um dict auto-suficiente (helpers `salvar_bundle`/`carregar_bund
   **macro-F1** → salva `models/rf_etapa2.joblib`. _(Fase 3)_
 - **B3** Tuning: `RandomizedSearchCV` via **`imblearn.Pipeline`** (sem vazamento) + importância. _(Fase 4)_
 - **B4** **Avaliação cascata** fim-a-fim (teste por Etapa1→Etapa2, incl. "não detectado"). _(Fase 4)_
+- **B5** **Modelo de Interpretabilidade (DT dedicada):** script `dt_interpretabilidade.py` para treinar árvore de decisão rasa nas Etapas 1 e 2, salvar `models/dt_etapa1.joblib` e `models/dt_etapa2.joblib`, exportar regras lógicas de negócio e gráficos de estrutura. _(Fase 4)_
 
 Começa contra o Contrato 1 + `amostra.parquet`. Usa `visualizacao.plotar_matriz` (Track C).
 
@@ -69,5 +70,6 @@ Começa contra o Contrato 1 + `amostra.parquet`. Usa `visualizacao.plotar_matriz
 - **C4** `visualizacao.py` (heatmap reutilizável, **reusado por B**) +
   README "como rodar" + doc de download dos dados.
 - **C5** `@st.cache_resource`, polimento, figuras para o relatório. _(Fase 5)_
+- **C6** **Dashboard de Interpretabilidade:** estender a interface Streamlit para exibir regras textuais lógicas e visualização gráfica de caminhos lógicos quando o modelo "Árvore de Decisão" for selecionado. _(Fase 5)_
 
 Começa com o **bundle falso** + dados dummy; integra com modelos reais no M3.
