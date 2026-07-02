@@ -34,10 +34,14 @@ from backend.preprocessamento import (
     preparar_features,
     split,
     salvar_bundle,
+    carregar_bundle,
     carregar_holdout_canonico,
+    gerar_holdout_canonico,
+    INDICES_TESTE_PATH,
     DATA_DIR,
     MODELS_DIR
 )
+from backend.avaliacao import avaliar_cascata
 from backend.visualizacao import plotar_matriz_confusao
 
 def otimizar_limiar(y_val, probas_val, recall_alvo=0.98):
@@ -127,8 +131,15 @@ def main():
         df = limpar(df)
         df = criar_targets(df)
         
-    # Carregar holdout canônico existente
-    idx_teste = carregar_holdout_canonico()
+    # Holdout canônico: reutiliza o mesmo split das Etapas 1/2 se já existir,
+    # ou gera agora (a partir de um checkout limpo, quando só a amostra foi
+    # criada) para manter o pipeline reprodutível de ponta a ponta.
+    if INDICES_TESTE_PATH.exists():
+        idx_teste = carregar_holdout_canonico()
+        print(f"Holdout canônico reutilizado de {INDICES_TESTE_PATH}")
+    else:
+        print("Holdout canônico não encontrado; gerando agora...")
+        idx_teste = gerar_holdout_canonico(df)
     df_treino_val = df.loc[~df.index.isin(idx_teste)].copy()
     print(f"Dados para treino/validação (excl. holdout): {len(df_treino_val)}")
 
@@ -258,6 +269,26 @@ def main():
         limiar=0.5
     )
     print("Bundle dt_etapa2.joblib salvo com sucesso!")
+
+    # =========================================================================
+    # AVALIAÇÃO EM CASCATA FIM-A-FIM NO HOLDOUT CANÔNICO
+    # =========================================================================
+    # As métricas acima são medidas em splits internos de cada etapa. Aqui
+    # medimos dt_etapa1 + dt_etapa2 em cascata sobre o holdout canônico (nunca
+    # visto no treino), tornando o DT diretamente comparável à avaliação
+    # fim-a-fim do pipeline (backend/avaliacao.py).
+    print("\n--- AVALIAÇÃO EM CASCATA FIM-A-FIM (DT) NO HOLDOUT CANÔNICO ---")
+    bundle_dt1 = carregar_bundle(MODELS_DIR / "dt_etapa1.joblib")
+    bundle_dt2 = carregar_bundle(MODELS_DIR / "dt_etapa2.joblib")
+    avaliar_cascata(
+        df=df,
+        idx_teste=idx_teste,
+        bundle1=bundle_dt1,
+        bundle2=bundle_dt2,
+        caminho_imagem=root_dir / "images" / "mat_confusao_cascata_dt.png",
+        titulo="Matriz de Confusão Cascata Fim-a-Fim (DT)\n(Detecção + Identificação)",
+    )
+
     print("\n--- TREINAMENTO DAS ÁRVORES DE DECISÃO CONCLUÍDO ---")
 
 if __name__ == "__main__":
