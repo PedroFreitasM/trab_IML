@@ -20,6 +20,26 @@ O modelo focará nas variáveis mais importantes para o escopo, como `Flow Durat
 2. *Regressão Logística:* Modelo de *baseline* linear com velocidade de inferência superior.
 3. *Árvore de Decisão (Interpretabilidade):* Árvore rasa dedicada à explicabilidade, permitindo a extração de regras textuais de decisão e plotagem visual das ramificações.
 
+### Análise Comparativa e Trade-offs dos Algoritmos
+
+| Algoritmo | Prós (Vantagens) | Contras (Desvantagens) | Papel no Projeto |
+| :--- | :--- | :--- | :--- |
+| **Random Forest** | - Elevada acurácia e F1-Score.<br>- Excelente robustez a ruídos.<br>- Lida bem com alta dimensionalidade (77 features) sem overfitting. | - Inferência e treinamento mais lentos.<br>- Consumo de memória superior.<br>- Explicabilidade complexa ("caixa preta"). | **Modelo Principal**: Utilizado para segurança de produção visando o máximo desempenho preditivo. |
+| **Regressão Logística** | - Velocidade de inferência e treinamento excepcionais.<br>- Leve em termos de RAM e espaço em disco.<br>- Interpretação matemática direta dos pesos das variáveis. | - Exige normalização prévia rigorosa dos dados (`StandardScaler`).<br>- Assume linearidade, perdendo relações complexas e não-lineares. | **Baseline Linear**: Serve como referência base de velocidade de execução e desempenho mínimo aceitável. |
+| **Árvore de Decisão** | - Explicabilidade visual clara (visualização gráfica).<br>- Regras de decisão explícitas em lógica IF-THEN.<br>- Não exige normalização dos dados. | - Propensão a overfitting (mitigado limitando `max_depth` a 7 e 10).<br>- Ligeira perda de desempenho preditivo em relação à Random Forest. | **Modelo de Interpretabilidade**: Usado para auditorias de segurança e extração explícita de regras lógicas de detecção. |
+
+### Desempenho e Comparação de Resultados (Holdout de Teste)
+
+Abaixo estão os resultados obtidos por cada modelo no conjunto de teste independente (holdout canônico compartilhado de 15% dos dados):
+
+| Algoritmo | Etapa 1 - Detecção (Precision / Recall / F1-Score) | Etapa 2 - Classificação Cascata (F1-Score Macro) |
+| :--- | :---: | :---: |
+| **Random Forest** | 98.18% / 99.08% / **98.63%** | **91.51%** |
+| **Árvore de Decisão** | 95.52% / 97.62% / **96.55%** | **74.08%** |
+| **Regressão Logística** | 57.23% / 99.36% / **72.63%** | **46.94%** |
+
+*Nota: Na Etapa 1, todos os modelos foram calibrados para priorizar o **Recall** (alvo mínimo de 98% em validação) para mitigar falsos negativos (ataques não detectados).*
+
 * **Validação e Teste:** Divisão dos dados em 70% para treino, 15% para validação e 15% para testes (ou K-Fold). Os hiperparâmetros são otimizados via `GridSearchCV` dentro de um pipeline anti-leakage da biblioteca `imblearn`.
 
 ## 4. Avaliação e Métricas
