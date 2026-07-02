@@ -57,7 +57,7 @@ def main():
     df = pd.read_parquet(caminho_amostra)
     
     try:
-        idx_teste = carregar_holdout_canonico()
+        idx_teste = carregar_holdout_canonico(df)
     except FileNotFoundError as e:
         print(f"Erro: {e}")
         return

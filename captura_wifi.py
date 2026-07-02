@@ -310,7 +310,7 @@ def processar_pacote(pkt):
 
 def salvar_captura(nome_base: str) -> Path:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = OUTPUT_DIR / f"pacotes_capturados.pcap"
+    filename = OUTPUT_DIR / f"{nome_base}_{timestamp}.pcap"
     wrpcap(str(filename), packet_buffer)
     return filename
 

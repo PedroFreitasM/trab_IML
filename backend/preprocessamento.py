@@ -154,10 +154,23 @@ def carregar_bundle(caminho) -> dict:
 def gerar_holdout_canonico(df: pd.DataFrame, teste: float = 0.15, seed: int = 42) -> np.ndarray:
     """Cria e salva um holdout canônico (compartilhado entre Etapa 1, 2 e avaliação).
 
-    Remove classes com < 2 membros (inviáveis para stratify) e salva os
-    índices de teste em INDICES_TESTE_PATH para que todos os scripts usem
-    exatamente a mesma partição.
+    Valida e reutiliza o holdout existente se o dataframe coincidir com o fingerprint salvo.
     """
+    fp_atual = {
+        "shape": df.shape,
+        "index_sum": int(df.index.to_series().sum()),
+        "dist": df["target_tipo"].value_counts().to_dict()
+    }
+    
+    if INDICES_TESTE_PATH.exists():
+        try:
+            dados_salvos = joblib.load(INDICES_TESTE_PATH)
+            if isinstance(dados_salvos, dict) and dados_salvos.get("fingerprint") == fp_atual:
+                print(f"Holdout canônico existente validado. Reutilizando {len(dados_salvos['indices'])} índices de teste.")
+                return dados_salvos["indices"]
+        except Exception:
+            pass
+
     contagem = df["target_tipo"].value_counts()
     classes_raras = contagem[contagem < 2].index.tolist()
     df_valido = df[~df["target_tipo"].isin(classes_raras)] if classes_raras else df
@@ -168,19 +181,38 @@ def gerar_holdout_canonico(df: pd.DataFrame, teste: float = 0.15, seed: int = 42
         stratify=df_valido.loc[indices, "target_tipo"],
     )
     MODELS_DIR.mkdir(exist_ok=True)
-    joblib.dump(idx_teste, INDICES_TESTE_PATH)
-    print(f"Holdout canônico salvo ({len(idx_teste)} amostras de teste) em {INDICES_TESTE_PATH}")
+    joblib.dump({"indices": idx_teste, "fingerprint": fp_atual}, INDICES_TESTE_PATH)
+    print(f"Holdout canônico gerado e salvo ({len(idx_teste)} amostras de teste) em {INDICES_TESTE_PATH}")
     return idx_teste
 
 
-def carregar_holdout_canonico() -> np.ndarray:
-    """Carrega os índices de teste salvos por gerar_holdout_canonico()."""
+def carregar_holdout_canonico(df: pd.DataFrame) -> np.ndarray:
+    """Carrega os índices de teste salvos por gerar_holdout_canonico(), validando o fingerprint."""
     if not INDICES_TESTE_PATH.exists():
         raise FileNotFoundError(
             f"Índices de teste não encontrados em {INDICES_TESTE_PATH}. "
             "Execute etapa1_deteccao.py primeiro para gerar o holdout canônico."
         )
-    return joblib.load(INDICES_TESTE_PATH)
+    
+    dados_salvos = joblib.load(INDICES_TESTE_PATH)
+    if not isinstance(dados_salvos, dict) or "indices" not in dados_salvos or "fingerprint" not in dados_salvos:
+        raise ValueError(
+            "O arquivo de holdout está em formato antigo. Execute etapa1_deteccao.py novamente para regerá-lo."
+        )
+        
+    fp_atual = {
+        "shape": df.shape,
+        "index_sum": int(df.index.to_series().sum()),
+        "dist": df["target_tipo"].value_counts().to_dict()
+    }
+    
+    if dados_salvos["fingerprint"] != fp_atual:
+        raise ValueError(
+            "FINGERPRINT MISMATCH: O dataframe fornecido não condiz com a amostra original "
+            "usada para gerar o holdout. Certifique-se de usar a mesma base e de que ela não foi regenerada."
+        )
+        
+    return dados_salvos["indices"]
 
 
 if __name__ == "__main__":

@@ -34,10 +34,12 @@ def main() -> None:
     # Etapa 1 -- binario
     m1 = RandomForestClassifier(n_estimators=10, random_state=42).fit(X, rng.integers(0, 2, 300))
     salvar_bundle(MODELS_DIR / "rf_etapa1.joblib", m1, cols, classes=[0, 1], limiar=0.5)
+    salvar_bundle(MODELS_DIR / "lr_etapa1.joblib", m1, cols, classes=[0, 1], limiar=0.5)
 
     # Etapa 2 -- multiclasse (familias)
     m2 = RandomForestClassifier(n_estimators=10, random_state=42).fit(X, rng.choice(FAMILIAS, 300))
     salvar_bundle(MODELS_DIR / "rf_etapa2.joblib", m2, cols, classes=FAMILIAS)
+    salvar_bundle(MODELS_DIR / "lr_etapa2.joblib", m2, cols, classes=FAMILIAS)
 
     print(f"Bundles falsos criados em {MODELS_DIR} ({len(cols)} colunas).")
     print("ATENCAO: modelos sem valor preditivo -- apenas para o dashboard rodar.")

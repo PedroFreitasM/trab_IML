@@ -116,7 +116,7 @@ def main():
         df = criar_targets(df)
         
     # 2. Excluir holdout canônico (dados reservados para teste fim-a-fim)
-    idx_teste = carregar_holdout_canonico()
+    idx_teste = carregar_holdout_canonico(df)
     df = df.loc[~df.index.isin(idx_teste)].copy()
     print(f"Holdout canônico excluído: usando {len(df)} amostras para treino")
 
@@ -124,7 +124,7 @@ def main():
     df_ataques = filtrar_e_preparar_ataques(df)
     df_ataques = limpar_classes_raras(df_ataques, min_samples=6)
     
-    # 3. Preparação de features e split em Treino/Teste
+    # 4. Preparação de features e split em Treino/Teste
     X, y = preparar_features(df_ataques, alvo="target_tipo")
     
     # Split 85% treino (para CV) e 15% teste final
@@ -134,10 +134,10 @@ def main():
     print(f"Partição de Treino: {X_train.shape} | Teste Final: {X_test.shape}")
     print(f"Distribuição de classes no Treino:\n{y_train.value_counts()}")
     
-    # 4. Executar Validação Cruzada para seleção de modelos
+    # 5. Executar Validação Cruzada para seleção de modelos
     avaliar_cv(X_train, y_train)
     
-    # 5. Treinamento do Modelo Principal (Random Forest) no Treino Completo
+    # 6. Treinamento do Modelo Principal (Random Forest) no Treino Completo
     # Montamos o pipeline final com Random Forest
     pipeline_final = Pipeline([
         ("variance", VarianceThreshold()),
@@ -148,13 +148,13 @@ def main():
     print("\nTreinando o pipeline Random Forest final...")
     pipeline_final.fit(X_train, y_train)
     
-    # 6. Avaliação final no conjunto de TESTE
+    # 7. Avaliação final no conjunto de TESTE
     y_pred_teste = pipeline_final.predict(X_test)
     
     print("\n=== RELATÓRIO DE CLASSIFICAÇÃO NO TESTE ===")
     print(classification_report(y_test, y_pred_teste))
     
-    # 7. Matriz de Confusão NxN
+    # 8. Matriz de Confusão NxN
     classes_ordenadas = sorted(y_test.unique())
     cm = confusion_matrix(y_test, y_pred_teste, labels=classes_ordenadas)
     
@@ -166,7 +166,7 @@ def main():
         titulo="Matriz de Confusão (Identificação de Ataques) - Random Forest"
     )
     
-    # 8. Importância de features
+    # 9. Importância de features
     clf_model = pipeline_final.named_steps["model"]
     # Precisamos das colunas após o VarianceThreshold
     colunas_apos_var = X_train.columns[pipeline_final.named_steps["variance"].get_support()]
@@ -177,7 +177,7 @@ def main():
     for col, imp in top_10.items():
         print(f"{col:<35}: {imp:.4f}")
         
-    # 9. Salvar o bundle
+    # 10. Salvar o bundle
     # Nota: salvamos o pipeline completo como o "modelo", pois ele encapsula a transformação de variância
     caminho_bundle = MODELS_DIR / "rf_etapa2.joblib"
     print(f"\nSalvando o bundle do modelo multiclasse em: {caminho_bundle}")

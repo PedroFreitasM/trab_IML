@@ -164,13 +164,13 @@ def main():
     # 3. Subamostragem de BENIGN
     df = subamostrar_benign(df, ratio=3.0)
     
-    # 3. Preparação de features e split
+    # 4. Preparação de features e split
     X, y = preparar_features(df, alvo="target_bin")
     print(f"Total de features originais: {X.shape[1]}")
     
     particoes = split(X, y, val=0.15, teste=0.15, seed=42)
     
-    # 4. Filtrar variância zero (calculado no treino)
+    # 5. Filtrar variância zero (calculado no treino)
     X_train, X_val, X_test = filtrar_variancia_zero(
         particoes["X_train"], particoes["X_val"], particoes["X_test"]
     )
@@ -180,20 +180,20 @@ def main():
     print(f"Treino: {X_train.shape} | Validação: {X_val.shape} | Teste: {X_test.shape}")
     print(f"Distribuição de classes no treino: {dict(y_train.value_counts())}")
     
-    # 5. Treinar e comparar modelos
+    # 6. Treinar e comparar modelos
     resultados = treinar_e_avaliar_modelos(X_train, y_train, X_val, y_val)
     
-    # 6. Escolher o melhor modelo (principalmente baseado no F1 e Recall na validação)
+    # 7. Escolher o melhor modelo (principalmente baseado no F1 e Recall na validação)
     # Por padrão do projeto, Random Forest é o modelo principal.
     melhor_nome = "Random Forest"
     melhor_info = resultados[melhor_nome]
     print(f"\nModelo selecionado como principal: {melhor_nome}")
     
-    # 7. Otimizar limiar para priorizar Recall
+    # 8. Otimizar limiar para priorizar Recall
     limiar_otimo = otimizar_limiar(y_val, melhor_info["probas_val"], recall_alvo=0.98)
     print(f"-> Limiar ótimo selecionado: {limiar_otimo:.4f}")
     
-    # 8. Avaliação final no conjunto de TESTE
+    # 9. Avaliação final no conjunto de TESTE
     clf = melhor_info["modelo"]
     scaler = melhor_info["scaler"]
     
@@ -215,7 +215,7 @@ def main():
     print("Matriz de Confusão:")
     print(cm)
     
-    # 9. Gerar heatmap e salvar
+    # 10. Gerar heatmap e salvar
     caminho_imagem = root_dir / "images" / "mat_confusao_deteccao.png"
     plotar_matriz_confusao(
         cm, 
@@ -224,7 +224,7 @@ def main():
         titulo=f"Matriz de Confusão (Detecção) - {melhor_nome}\nLimiar: {limiar_otimo:.3f}"
     )
     
-    # 10. Importância de features (para Random Forest)
+    # 11. Importância de features (para Random Forest)
     if hasattr(clf, "feature_importances_"):
         importancias = pd.Series(clf.feature_importances_, index=X_train.columns)
         top_10 = importancias.sort_values(ascending=False).head(10)
@@ -232,7 +232,7 @@ def main():
         for col, imp in top_10.items():
             print(f"{col:<35}: {imp:.4f}")
             
-    # 11. Salvar o bundle
+    # 12. Salvar o bundle
     caminho_bundle = MODELS_DIR / "rf_etapa1.joblib"
     print(f"\nSalvando o bundle do modelo em: {caminho_bundle}")
     salvar_bundle(

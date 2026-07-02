@@ -236,9 +236,9 @@ Em cada etapa, treinamos e comparamos **3 modelos**:
 
 #### Cascata Fim-a-Fim
 
-- **Ataques não detectados (Falsos Negativos):** 12 de 1.091 (**1,10%**)
-- **Macro-F1 combinado:** **0.94**
-- **Acurácia geral:** **99,84%**
+- **Ataques não detectados (Falsos Negativos):** 17 de 1.091 (**1.56%**)
+- **Macro-F1 combinado:** **0.92**
+- **Acurácia geral:** **99.77%**
 
 ### Anti-Leakage
 
@@ -266,15 +266,15 @@ O dashboard permite ao operador de rede:
 
 O projeto inclui ferramentas para capturar e converter tráfego de rede real:
 
-1. **`captura_wifi.py`** — Captura pacotes de uma interface de rede usando Scapy e salva em `.pcap`
-2. **`conversor.py`** — Converte arquivos `.pcap` para CSV com as 77 features do CICFlowMeter, compatíveis com os modelos treinados
+1. **`captura_wifi.py`** — Captura pacotes de uma interface de rede usando Scapy e salva em `.pcap` no formato `capturas/<nome>_<timestamp>.pcap`.
+2. **`conversor.py`** — Converte arquivos `.pcap` para CSV mapeando as colunas curtas do CICFlowMeter para os nomes longos esperados pelos modelos na inferência.
 
 ```bash
-# Capturar 30 segundos de tráfego na interface Wi-Fi
-sudo python captura_wifi.py -i wlp2s0 -d 30
+# Capturar 30 segundos de tráfego na interface Wi-Fi (salva como capturas/wifi_capture_YYYYMMDD_HHMMSS.pcap)
+sudo python captura_wifi.py -i wlp2s0 -d 30 --nome wifi_capture
 
-# Converter o .pcap para CSV
-python conversor.py capturas/wifi_capture.pcap -o trafego_real.csv
+# Converter o .pcap para CSV (substitua o timestamp pelo gerado no comando anterior)
+python conversor.py capturas/wifi_capture_20260701_213000.pcap trafego_real.csv
 
 # Fazer upload do CSV no dashboard para análise
 streamlit run frontend/app.py
