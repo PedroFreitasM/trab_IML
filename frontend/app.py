@@ -99,6 +99,35 @@ def normalizar_colunas(df):
     df.columns = df.columns.str.strip()
     return df
 
+def preparar_entrada_modelo(df, bundle):
+    """Alinha o CSV ao contrato do bundle e garante matriz numérica para inferência."""
+    X = df.reindex(columns=bundle["colunas"], fill_value=0)
+    X = X.apply(pd.to_numeric, errors="coerce")
+    X = X.replace([np.inf, -np.inf], np.nan).fillna(0)
+
+    scaler = bundle.get("scaler")
+    if scaler is not None:
+        return scaler.transform(X)
+    return X
+
+def classes_do_modelo(modelo):
+    """Obtém classes tanto de estimadores diretos quanto de pipelines sklearn/imblearn."""
+    classes = getattr(modelo, "classes_", None)
+    if classes is None and hasattr(modelo, "named_steps"):
+        estimador_final = modelo.named_steps.get("model")
+        classes = getattr(estimador_final, "classes_", None)
+    return list(classes) if classes is not None else []
+
+def indice_classe(modelo, classe, n_colunas_proba, fallback=1):
+    """Resolve o índice de uma classe em predict_proba sem assumir formato do modelo."""
+    classes = classes_do_modelo(modelo)
+    if classe in classes:
+        return classes.index(classe)
+    classe_str = str(classe)
+    if classe_str in classes:
+        return classes.index(classe_str)
+    return fallback if fallback < n_colunas_proba else n_colunas_proba - 1
+
 # -----------------------------------------------------------------------------
 # Lógica Principal da Interface
 # -----------------------------------------------------------------------------
@@ -128,17 +157,11 @@ if arquivo_csv is not None:
     # =========================================================================
     # PIPELINE ETAPA 1: Detecção Binária (Ataque vs Normal)
     # =========================================================================
-    # Reindexar garantindo exatamente as colunas usadas no treino da etapa 1
-    X1 = df_clean.reindex(columns=bundle_etapa1["colunas"], fill_value=0)
-    
-    if bundle_etapa1.get("scaler"):
-        X1 = bundle_etapa1["scaler"].transform(X1)
-        
+    X1 = preparar_entrada_modelo(df_clean, bundle_etapa1)
     modelo1 = bundle_etapa1["modelo"]
     probs_e1 = modelo1.predict_proba(X1)
     
-    # Assume que a classe 1 (Ataque) é o índice 1 nas probabilidades
-    idx_classe_ataque = list(modelo1.classes_).index(1) if 1 in modelo1.classes_ else 1
+    idx_classe_ataque = indice_classe(modelo1, 1, probs_e1.shape[1], fallback=1)
     prob_ataque = probs_e1[:, idx_classe_ataque]
     limiar1 = bundle_etapa1.get("limiar", 0.5)
     
@@ -156,15 +179,13 @@ if arquivo_csv is not None:
     if len(indices_ataques) > 0:
         df_ataques = df_clean.loc[indices_ataques]
         
-        # Reindexar para as colunas exatas da etapa 2
-        X2 = df_ataques.reindex(columns=bundle_etapa2["colunas"], fill_value=0)
-        
-        if bundle_etapa2.get("scaler"):
-            X2 = bundle_etapa2["scaler"].transform(X2)
-            
+        X2 = preparar_entrada_modelo(df_ataques, bundle_etapa2)
         modelo2 = bundle_etapa2["modelo"]
         preds_e2 = modelo2.predict(X2)
-        probs_e2 = np.max(modelo2.predict_proba(X2), axis=1)
+        if hasattr(modelo2, "predict_proba"):
+            probs_e2 = np.max(modelo2.predict_proba(X2), axis=1)
+        else:
+            probs_e2 = np.ones(len(preds_e2))
         
         # Mapeamento de classes (se existirem) ou uso direto das predições
         if "classes" in bundle_etapa2:
