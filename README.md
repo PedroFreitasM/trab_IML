@@ -20,6 +20,14 @@ O modelo focará nas variáveis mais importantes para o escopo, como `Flow Durat
 2. *Regressão Logística:* Modelo de *baseline* linear com velocidade de inferência superior.
 3. *Árvore de Decisão (Interpretabilidade):* Árvore rasa dedicada à explicabilidade, permitindo a extração de regras textuais de decisão e plotagem visual das ramificações.
 
+### Análise Comparativa e Trade-offs dos Algoritmos
+
+| Algoritmo | Prós (Vantagens) | Contras (Desvantagens) | Papel no Projeto |
+| :--- | :--- | :--- | :--- |
+| **Random Forest** | - Elevada acurácia e F1-Score.<br>- Excelente robustez a ruídos.<br>- Lida bem com alta dimensionalidade (77 features) sem overfitting. | - Inferência e treinamento mais lentos.<br>- Consumo de memória superior.<br>- Explicabilidade complexa ("caixa preta"). | **Modelo Principal**: Utilizado para segurança de produção visando o máximo desempenho preditivo. |
+| **Regressão Logística** | - Velocidade de inferência e treinamento excepcionais.<br>- Leve em termos de RAM e espaço em disco.<br>- Interpretação matemática direta dos pesos das variáveis. | - Exige normalização prévia rigorosa dos dados (`StandardScaler`).<br>- Assume linearidade, perdendo relações complexas e não-lineares. | **Baseline Linear**: Serve como referência base de velocidade de execução e desempenho mínimo aceitável. |
+| **Árvore de Decisão** | - Explicabilidade visual clara (visualização gráfica).<br>- Regras de decisão explícitas em lógica IF-THEN.<br>- Não exige normalização dos dados. | - Propensão a overfitting (mitigado limitando `max_depth` a 7 e 10).<br>- Ligeira perda de desempenho preditivo em relação à Random Forest. | **Modelo de Interpretabilidade**: Usado para auditorias de segurança e extração explícita de regras lógicas de detecção. |
+
 * **Validação e Teste:** Divisão dos dados em 70% para treino, 15% para validação e 15% para testes (ou K-Fold). Os hiperparâmetros são otimizados via `GridSearchCV` dentro de um pipeline anti-leakage da biblioteca `imblearn`.
 
 ## 4. Avaliação e Métricas
