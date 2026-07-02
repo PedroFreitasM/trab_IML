@@ -19,6 +19,7 @@ from sklearn.model_selection import train_test_split
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 MODELS_DIR = Path(__file__).resolve().parent.parent / "models"
+INDICES_TESTE_PATH = MODELS_DIR / "indices_teste.joblib"
 
 ARQUIVOS = [
     "Benign-Monday-no-metadata.parquet",
@@ -148,6 +149,38 @@ def salvar_bundle(caminho, modelo, colunas, scaler=None, classes=None, limiar=0.
 def carregar_bundle(caminho) -> dict:
     """Carrega um bundle salvo por salvar_bundle()."""
     return joblib.load(caminho)
+
+
+def gerar_holdout_canonico(df: pd.DataFrame, teste: float = 0.15, seed: int = 42) -> np.ndarray:
+    """Cria e salva um holdout canônico (compartilhado entre Etapa 1, 2 e avaliação).
+
+    Remove classes com < 2 membros (inviáveis para stratify) e salva os
+    índices de teste em INDICES_TESTE_PATH para que todos os scripts usem
+    exatamente a mesma partição.
+    """
+    contagem = df["target_tipo"].value_counts()
+    classes_raras = contagem[contagem < 2].index.tolist()
+    df_valido = df[~df["target_tipo"].isin(classes_raras)] if classes_raras else df
+
+    indices = df_valido.index.to_numpy()
+    _, idx_teste = train_test_split(
+        indices, test_size=teste, random_state=seed,
+        stratify=df_valido.loc[indices, "target_tipo"],
+    )
+    MODELS_DIR.mkdir(exist_ok=True)
+    joblib.dump(idx_teste, INDICES_TESTE_PATH)
+    print(f"Holdout canônico salvo ({len(idx_teste)} amostras de teste) em {INDICES_TESTE_PATH}")
+    return idx_teste
+
+
+def carregar_holdout_canonico() -> np.ndarray:
+    """Carrega os índices de teste salvos por gerar_holdout_canonico()."""
+    if not INDICES_TESTE_PATH.exists():
+        raise FileNotFoundError(
+            f"Índices de teste não encontrados em {INDICES_TESTE_PATH}. "
+            "Execute etapa1_deteccao.py primeiro para gerar o holdout canônico."
+        )
+    return joblib.load(INDICES_TESTE_PATH)
 
 
 if __name__ == "__main__":

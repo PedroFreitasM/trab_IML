@@ -33,6 +33,7 @@ from backend.preprocessamento import (
     criar_targets,
     preparar_features,
     salvar_bundle,
+    carregar_holdout_canonico,
     DATA_DIR,
     MODELS_DIR
 )
@@ -114,7 +115,12 @@ def main():
         df = limpar(df)
         df = criar_targets(df)
         
-    # 2. Filtrar apenas tráfego malicioso e remover classes ultra-raras
+    # 2. Excluir holdout canônico (dados reservados para teste fim-a-fim)
+    idx_teste = carregar_holdout_canonico()
+    df = df.loc[~df.index.isin(idx_teste)].copy()
+    print(f"Holdout canônico excluído: usando {len(df)} amostras para treino")
+
+    # 3. Filtrar apenas tráfego malicioso e remover classes ultra-raras
     df_ataques = filtrar_e_preparar_ataques(df)
     df_ataques = limpar_classes_raras(df_ataques, min_samples=6)
     
