@@ -42,12 +42,7 @@ uv venv --python 3.12 .venv
 uv pip install -r requirements.txt
 ```
 
-### Passo 1: Gerar Bundles Falsos (Opcional - Apenas para rodar o Dashboard sem treinar)
-```bash
-.venv/Scripts/python.exe backend/gerar_bundle_falso.py
-```
-
-### Passo 2: Treinar os Modelos Reais
+### Passo 1: Treinar os Modelos Reais
 Para treinar os modelos e gerar os bundles em `models/`:
 - **Modelos Principais (Random Forest & Regressão Logística):**
   ```bash
@@ -59,12 +54,12 @@ Para treinar os modelos e gerar os bundles em `models/`:
   .venv/Scripts/python.exe backend/dt_interpretabilidade.py
   ```
 
-### Passo 3: Executar a Avaliação Fim-a-Fim
+### Passo 2: Executar a Avaliação Fim-a-Fim
 ```bash
 .venv/Scripts/python.exe backend/avaliacao.py
 ```
 
-### Passo 4: Executar o Dashboard Streamlit
+### Passo 3: Executar o Dashboard Streamlit
 ```bash
 .venv/Scripts/python.exe -m streamlit run frontend/app.py
 ```
