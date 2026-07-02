@@ -17,6 +17,10 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import classification_report, confusion_matrix, f1_score, recall_score, precision_score
+from sklearn.model_selection import GridSearchCV
+from sklearn.feature_selection import VarianceThreshold
+from imblearn.pipeline import Pipeline
+from imblearn.under_sampling import RandomUnderSampler
 
 # Adiciona o diretório raiz ao python path
 root_dir = Path(__file__).resolve().parent.parent
@@ -158,53 +162,73 @@ def main():
         
     # 2. Holdout canônico: separa teste ANTES de qualquer subamostragem
     idx_teste = gerar_holdout_canonico(df)
-    df = df.loc[~df.index.isin(idx_teste)].copy()
-    print(f"Dados restantes para treino/validação (excl. holdout): {len(df)}")
+    df_treino_val = df.loc[~df.index.isin(idx_teste)].copy()
+    print(f"Dados restantes para treino/validação (excl. holdout): {len(df_treino_val)}")
 
-    # 3. Subamostragem de BENIGN
-    df = subamostrar_benign(df, ratio=3.0)
-    
-    # 3. Preparação de features e split
-    X, y = preparar_features(df, alvo="target_bin")
+    # 3. Preparação de features e split (treino/validação/teste) ANTES de qualquer subamostragem
+    X, y = preparar_features(df_treino_val, alvo="target_bin")
     print(f"Total de features originais: {X.shape[1]}")
     
     particoes = split(X, y, val=0.15, teste=0.15, seed=42)
-    
-    # 4. Filtrar variância zero (calculado no treino)
-    X_train, X_val, X_test = filtrar_variancia_zero(
-        particoes["X_train"], particoes["X_val"], particoes["X_test"]
-    )
+    X_train, X_val, X_test = particoes["X_train"], particoes["X_val"], particoes["X_test"]
     y_train, y_val, y_test = particoes["y_train"], particoes["y_val"], particoes["y_test"]
     
-    print(f"Shapes após filtros de variância:")
+    print(f"Shapes das partições:")
     print(f"Treino: {X_train.shape} | Validação: {X_val.shape} | Teste: {X_test.shape}")
-    print(f"Distribuição de classes no treino: {dict(y_train.value_counts())}")
+    print(f"Distribuição de classes no treino original: {dict(y_train.value_counts())}")
     
-    # 5. Treinar e comparar modelos
-    resultados = treinar_e_avaliar_modelos(X_train, y_train, X_val, y_val)
+    # 4. Definição do Pipeline e busca de hiperparâmetros
+    pipeline = Pipeline([
+        ("variance", VarianceThreshold()),
+        ("scaler", StandardScaler()),
+        ("sampler", RandomUnderSampler(sampling_strategy=0.333, random_state=42)),
+        ("model", RandomForestClassifier(random_state=42, class_weight='balanced'))
+    ])
     
-    # 6. Escolher o melhor modelo (principalmente baseado no F1 e Recall na validação)
-    # Por padrão do projeto, Random Forest é o modelo principal.
-    melhor_nome = "Random Forest"
-    melhor_info = resultados[melhor_nome]
-    print(f"\nModelo selecionado como principal: {melhor_nome}")
+    param_grid = [
+        {
+            'model': [RandomForestClassifier(random_state=42, n_jobs=-1, class_weight='balanced')],
+            'model__n_estimators': [50, 100],
+            'model__max_depth': [8, 12],
+            'scaler': ['passthrough']
+        },
+        {
+            'model': [DecisionTreeClassifier(random_state=42, class_weight='balanced')],
+            'model__max_depth': [8, 12],
+            'scaler': ['passthrough']
+        },
+        {
+            'model': [LogisticRegression(max_iter=1000, random_state=42, class_weight='balanced')],
+            'model__C': [0.1, 1.0, 10.0],
+            'scaler': [StandardScaler()]
+        }
+    ]
     
-    # 7. Otimizar limiar para priorizar Recall
-    limiar_otimo = otimizar_limiar(y_val, melhor_info["probas_val"], recall_alvo=0.98)
+    print("\nExecutando hyperparameter tuning com GridSearchCV...")
+    grid_search = GridSearchCV(
+        pipeline,
+        param_grid,
+        scoring="f1",
+        cv=5,
+        n_jobs=-1
+    )
+    grid_search.fit(X_train, y_train)
+    
+    print(f"Melhores parâmetros: {grid_search.best_params_}")
+    print(f"Melhor score F1 (validação cruzada): {grid_search.best_score_:.4f}")
+    
+    best_pipeline = grid_search.best_estimator_
+    best_model_obj = best_pipeline.named_steps["model"]
+    best_model_name = type(best_model_obj).__name__
+    print(f"\nMelhor classificador selecionado: {best_model_name}")
+    
+    # 5. Otimizar limiar para priorizar Recall no conjunto de validação
+    probas_val = best_pipeline.predict_proba(X_val)[:, 1]
+    limiar_otimo = otimizar_limiar(y_val, probas_val, recall_alvo=0.98)
     print(f"-> Limiar ótimo selecionado: {limiar_otimo:.4f}")
     
-    # 8. Avaliação final no conjunto de TESTE
-    clf = melhor_info["modelo"]
-    scaler = melhor_info["scaler"]
-    
-    # Preparar features de teste
-    if scaler is not None:
-        X_test_proc = scaler.transform(X_test)
-        probas_test = clf.predict_proba(X_test_proc)[:, 1]
-    else:
-        X_test_proc = X_test
-        probas_test = clf.predict_proba(X_test_proc)[:, 1]
-        
+    # 6. Avaliação final no conjunto de TESTE
+    probas_test = best_pipeline.predict_proba(X_test)[:, 1]
     y_pred_teste = (probas_test >= limiar_otimo).astype(int)
     
     print(f"\n=== RELATÓRIO DE CLASSIFICAÇÃO NO TESTE (Limiar: {limiar_otimo:.4f}) ===")
@@ -215,31 +239,41 @@ def main():
     print("Matriz de Confusão:")
     print(cm)
     
-    # 9. Gerar heatmap e salvar
+    # 7. Gerar heatmap e salvar
     caminho_imagem = root_dir / "images" / "mat_confusao_deteccao.png"
     plotar_matriz_confusao(
         cm, 
         classes=["Normal (0)", "Ataque (1)"], 
         caminho_salvar=caminho_imagem,
-        titulo=f"Matriz de Confusão (Detecção) - {melhor_nome}\nLimiar: {limiar_otimo:.3f}"
+        titulo=f"Matriz de Confusão (Detecção) - {best_model_name}\nLimiar: {limiar_otimo:.3f}"
     )
     
-    # 10. Importância de features (para Random Forest)
-    if hasattr(clf, "feature_importances_"):
-        importancias = pd.Series(clf.feature_importances_, index=X_train.columns)
+    # 8. Importância de features (ou coeficientes) para o melhor classificador
+    if hasattr(best_model_obj, "feature_importances_"):
+        support = best_pipeline.named_steps["variance"].get_support()
+        colunas_apos_var = X_train.columns[support]
+        importancias = pd.Series(best_model_obj.feature_importances_, index=colunas_apos_var)
         top_10 = importancias.sort_values(ascending=False).head(10)
         print("\n=== TOP 10 FEATURES MAIS IMPORTANTES ===")
         for col, imp in top_10.items():
             print(f"{col:<35}: {imp:.4f}")
+    elif hasattr(best_model_obj, "coef_"):
+        support = best_pipeline.named_steps["variance"].get_support()
+        colunas_apos_var = X_train.columns[support]
+        importancias = pd.Series(np.abs(best_model_obj.coef_[0]), index=colunas_apos_var)
+        top_10 = importancias.sort_values(ascending=False).head(10)
+        print("\n=== TOP 10 FEATURES MAIS IMPORTANTES (Coefs Absolutos) ===")
+        for col, imp in top_10.items():
+            print(f"{col:<35}: {imp:.4f}")
             
-    # 11. Salvar o bundle
+    # 9. Salvar o bundle
     caminho_bundle = MODELS_DIR / "etapa1.joblib"
     print(f"\nSalvando o bundle do modelo em: {caminho_bundle}")
     salvar_bundle(
         caminho=caminho_bundle,
-        modelo=clf,
+        modelo=best_pipeline,
         colunas=X_train.columns.tolist(),
-        scaler=scaler,
+        scaler=None,
         classes=[0, 1],
         limiar=limiar_otimo
     )

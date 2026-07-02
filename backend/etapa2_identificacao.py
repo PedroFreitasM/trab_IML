@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import StratifiedKFold, train_test_split
+from sklearn.model_selection import StratifiedKFold, train_test_split, GridSearchCV
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
@@ -134,22 +134,56 @@ def main():
     print(f"Partição de Treino: {X_train.shape} | Teste Final: {X_test.shape}")
     print(f"Distribuição de classes no Treino:\n{y_train.value_counts()}")
     
-    # 4. Executar Validação Cruzada para seleção de modelos
+    # 4. Executar Validação Cruzada para seleção de modelos (opcional, mantido para logs)
     avaliar_cv(X_train, y_train)
     
-    # 5. Treinamento do Modelo Principal (Random Forest) no Treino Completo
-    # Montamos o pipeline final com Random Forest
-    pipeline_final = Pipeline([
+    # 5. Definição do Pipeline e busca de hiperparâmetros
+    pipeline = Pipeline([
         ("variance", VarianceThreshold()),
+        ("scaler", StandardScaler()),
         ("smote", SMOTE(random_state=42)),
-        ("model", RandomForestClassifier(n_estimators=50, max_depth=10, random_state=42, n_jobs=-1, class_weight="balanced"))
+        ("model", RandomForestClassifier(random_state=42, class_weight="balanced"))
     ])
     
-    print("\nTreinando o pipeline Random Forest final...")
-    pipeline_final.fit(X_train, y_train)
+    param_grid = [
+        {
+            'model': [RandomForestClassifier(random_state=42, n_jobs=-1, class_weight='balanced')],
+            'model__n_estimators': [50, 100],
+            'model__max_depth': [8, 12],
+            'scaler': ['passthrough']
+        },
+        {
+            'model': [DecisionTreeClassifier(random_state=42, class_weight='balanced')],
+            'model__max_depth': [8, 12],
+            'scaler': ['passthrough']
+        },
+        {
+            'model': [LogisticRegression(max_iter=1000, random_state=42, class_weight='balanced')],
+            'model__C': [0.1, 1.0, 10.0],
+            'scaler': [StandardScaler()]
+        }
+    ]
+    
+    print("\nExecutando hyperparameter tuning com GridSearchCV...")
+    grid_search = GridSearchCV(
+        pipeline,
+        param_grid,
+        scoring="f1_macro",
+        cv=5,
+        n_jobs=-1
+    )
+    grid_search.fit(X_train, y_train)
+    
+    print(f"Melhores parâmetros: {grid_search.best_params_}")
+    print(f"Melhor score Macro-F1 (validação cruzada): {grid_search.best_score_:.4f}")
+    
+    best_pipeline = grid_search.best_estimator_
+    best_model_obj = best_pipeline.named_steps["model"]
+    best_model_name = type(best_model_obj).__name__
+    print(f"\nMelhor classificador selecionado: {best_model_name}")
     
     # 6. Avaliação final no conjunto de TESTE
-    y_pred_teste = pipeline_final.predict(X_test)
+    y_pred_teste = best_pipeline.predict(X_test)
     
     print("\n=== RELATÓRIO DE CLASSIFICAÇÃO NO TESTE ===")
     print(classification_report(y_test, y_pred_teste))
@@ -163,32 +197,34 @@ def main():
         cm, 
         classes=classes_ordenadas, 
         caminho_salvar=caminho_imagem,
-        titulo="Matriz de Confusão (Identificação de Ataques) - Random Forest"
+        titulo=f"Matriz de Confusão (Identificação de Ataques) - {best_model_name}"
     )
     
     # 8. Importância de features
-    clf_model = pipeline_final.named_steps["model"]
-    # Precisamos das colunas após o VarianceThreshold
-    colunas_apos_var = X_train.columns[pipeline_final.named_steps["variance"].get_support()]
-    
-    importancias = pd.Series(clf_model.feature_importances_, index=colunas_apos_var)
-    top_10 = importancias.sort_values(ascending=False).head(10)
-    print("\n=== TOP 10 FEATURES MAIS IMPORTANTES (Etapa 2) ===")
-    for col, imp in top_10.items():
-        print(f"{col:<35}: {imp:.4f}")
+    if hasattr(best_model_obj, "feature_importances_"):
+        colunas_apos_var = X_train.columns[best_pipeline.named_steps["variance"].get_support()]
+        importancias = pd.Series(best_model_obj.feature_importances_, index=colunas_apos_var)
+        top_10 = importancias.sort_values(ascending=False).head(10)
+        print("\n=== TOP 10 FEATURES MAIS IMPORTANTES (Etapa 2) ===")
+        for col, imp in top_10.items():
+            print(f"{col:<35}: {imp:.4f}")
+    elif hasattr(best_model_obj, "coef_"):
+        colunas_apos_var = X_train.columns[best_pipeline.named_steps["variance"].get_support()]
+        importancias = pd.Series(np.abs(best_model_obj.coef_[0]), index=colunas_apos_var)
+        top_10 = importancias.sort_values(ascending=False).head(10)
+        print("\n=== TOP 10 FEATURES MAIS IMPORTANTES (Coefs Absolutos) ===")
+        for col, imp in top_10.items():
+            print(f"{col:<35}: {imp:.4f}")
         
     # 9. Salvar o bundle
-    # Nota: salvamos o pipeline completo como o "modelo", pois ele encapsula a transformação de variância
     caminho_bundle = MODELS_DIR / "etapa2.joblib"
     print(f"\nSalvando o bundle do modelo multiclasse em: {caminho_bundle}")
     
-    # Para o contrato, salvamos o pipeline final como o modelo. 
-    # O pipeline já cuida do VarianceThreshold e do classificador internamente.
     salvar_bundle(
         caminho=caminho_bundle,
-        modelo=pipeline_final,
-        colunas=X_train.columns.tolist(), # colunas originais de entrada para o pipeline
-        scaler=None, # scaler não é usado por Random Forest (está embutido se fosse LR)
+        modelo=best_pipeline,
+        colunas=X_train.columns.tolist(),
+        scaler=None,
         classes=classes_ordenadas,
         limiar=0.5
     )
