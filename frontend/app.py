@@ -128,6 +128,28 @@ def indice_classe(modelo, classe, n_colunas_proba, fallback=1):
         return classes.index(classe_str)
     return fallback if fallback < n_colunas_proba else n_colunas_proba - 1
 
+def traduzir_protocolo(valor):
+    """Converte números de protocolo IP para nomes conhecidos sem perder o código original."""
+    try:
+        codigo = int(float(valor))
+    except (TypeError, ValueError):
+        return valor
+
+    protocolos = {
+        1: "ICMP",
+        2: "IGMP",
+        6: "TCP",
+        17: "UDP",
+        47: "GRE",
+        50: "ESP",
+        51: "AH",
+        58: "ICMPv6",
+        89: "OSPF",
+        132: "SCTP",
+    }
+    nome = protocolos.get(codigo, "Outro")
+    return f"{nome} ({codigo})"
+
 # -----------------------------------------------------------------------------
 # Lógica Principal da Interface
 # -----------------------------------------------------------------------------
@@ -167,9 +189,12 @@ if arquivo_csv is not None:
     
     # Classificação com base no limiar otimizado para Recall
     df_resultados["Alerta (Etapa 1)"] = np.where(prob_ataque >= limiar1, "Ataque", "Normal")
-    df_resultados["Confiança_Anomalia"] = np.round(prob_ataque * 100, 2)
+    df_resultados["Confiança Resultado (%)"] = np.round(
+        np.where(df_resultados["Alerta (Etapa 1)"] == "Ataque", prob_ataque, 1 - prob_ataque) * 100,
+        2
+    )
     df_resultados["Tipo de Ataque (Etapa 2)"] = "N/A"
-    df_resultados["Confiança_Tipo"] = 0.0
+    df_resultados["Confiança Tipo (%)"] = np.nan
 
     # =========================================================================
     # PIPELINE ETAPA 2: Identificação do Tipo (Apenas nos fluxos anômalos)
@@ -197,7 +222,7 @@ if arquivo_csv is not None:
             preds_nome = preds_e2
             
         df_resultados.loc[indices_ataques, "Tipo de Ataque (Etapa 2)"] = preds_nome
-        df_resultados.loc[indices_ataques, "Confiança_Tipo"] = np.round(probs_e2 * 100, 2)
+        df_resultados.loc[indices_ataques, "Confiança Tipo (%)"] = np.round(probs_e2 * 100, 2)
 
     # =========================================================================
     # Visualização de Dados (Métricas e Gráficos)
@@ -252,7 +277,12 @@ if arquivo_csv is not None:
         return f'background-color: {cor}'
     
     # Monta a tabela final combinando infos vitais
-    colunas_exibicao = ["Alerta (Etapa 1)", "Confiança_Anomalia", "Tipo de Ataque (Etapa 2)", "Confiança_Tipo"]
+    colunas_exibicao = [
+        "Alerta (Etapa 1)",
+        "Confiança Resultado (%)",
+        "Tipo de Ataque (Etapa 2)",
+        "Confiança Tipo (%)",
+    ]
     
     # CORREÇÃO APLICADA: Filtra de forma segura pegando apenas as colunas que realmente foram criadas
     colunas_presentes = [col for col in colunas_exibicao if col in df_resultados.columns]
@@ -262,12 +292,40 @@ if arquivo_csv is not None:
     colunas_contexto = [c for c in ['Source IP', 'Src IP', 'Destination IP', 'Dst IP',
                                     'Destination Port', 'Dst Port', 'Protocol'] if c in df_clean.columns]
     if colunas_contexto:
-        df_exibicao = pd.concat([df_clean[colunas_contexto], df_exibicao], axis=1)
+        df_contexto = df_clean[colunas_contexto].copy()
+        if "Protocol" in df_contexto.columns:
+            df_contexto["Protocolo"] = df_contexto["Protocol"].apply(traduzir_protocolo)
+            df_contexto = df_contexto.drop(columns=["Protocol"])
+        df_exibicao = pd.concat([df_contexto, df_exibicao], axis=1)
+
+    total_linhas = len(df_exibicao)
+    opcoes_por_pagina = [25, 50, 100, 200]
+    linhas_por_pagina = st.selectbox(
+        "Itens por página",
+        opcoes_por_pagina,
+        index=1,
+        key="alertas_itens_por_pagina",
+    )
+    total_paginas = max(1, int(np.ceil(total_linhas / linhas_por_pagina)))
+    pagina = st.number_input(
+        "Página",
+        min_value=1,
+        max_value=total_paginas,
+        value=1,
+        step=1,
+        key="alertas_pagina",
+    )
+    inicio = (pagina - 1) * linhas_por_pagina
+    fim = min(inicio + linhas_por_pagina, total_linhas)
+    df_pagina = df_exibicao.iloc[inicio:fim]
+
+    st.caption(f"Exibindo {inicio + 1}-{fim} de {total_linhas} fluxos")
+    altura_tabela = min(760, max(300, 38 * (len(df_pagina) + 1)))
 
     st.dataframe(
-        df_exibicao.style.map(colorir_alerta, subset=['Alerta (Etapa 1)']),
+        df_pagina.style.map(colorir_alerta, subset=['Alerta (Etapa 1)']),
         use_container_width=True,
-        height=400
+        height=altura_tabela
     )
 
 else:
