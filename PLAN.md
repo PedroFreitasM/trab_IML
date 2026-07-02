@@ -19,8 +19,7 @@ Random Forest e Regressão Logística; estratégia 70/15/15 com ajuste de hiperp
 (Grid/Random Search); métricas Precisão, Recall e F1; e reflexão ética (privacidade, falsos
 positivos, supervisão humana).
 
-Hoje existe: os dados (`data/*.parquet`, 8 famílias), um script de modelo binário funcional
-até a matriz de confusão (`backend/analise_matriz.py`) e a imagem gerada (`images/mat_confusao.png`).
+Hoje a `main` deve manter apenas código-fonte, documentação e contratos do pipeline. Dados brutos (`data/*.parquet`), artefatos gerados e scripts exploratórios aposentados ficam fora do Git.
 
 **Bloqueio crítico (ambiente):** a única versão instalada na máquina é **Python 3.14**
 (`py -3.12/-3.11` → "No suitable Python runtime found"), e o `.venv` (Python 3.14.6) só tem
@@ -28,22 +27,17 @@ até a matriz de confusão (`backend/analise_matriz.py`) e a imagem gerada (`ima
 de forma utilizável em 3.14 (numpy 1.26/sklearn 1.5 não têm wheel p/ 3.14). **`uv` está instalado**
 (`AppData\Roaming\uv`) e resolve isso baixando o Python 3.12 — ver Fase 0.
 
-**Bloqueio crítico (código):** o `backend/tratamento.py` está quebrado e **nunca executou**:
-`from sklearn,model_selection` (vírgula, linha 3), itera sobre `ficheiros_alvo` inexistente
-(`NameError`, linha 13), grafia errada `DDos` (linha 7) e o `concat`+`print` estão **dentro do
-loop** (indentação, linha 21). Os scripts leem os parquet do diretório atual, mas os arquivos
-estão em `data/`.
+**Limpeza de código:** o rascunho `backend/tratamento.py` foi aposentado. O contrato válido de carregamento, limpeza, criação de targets e split fica em `backend/preprocessamento.py`.
 
 Objetivo do plano: levar o projeto de "modelo binário isolado que não roda" até "pipeline
 reprodutível de 2 etapas (detecção + identificação), com métricas completas e dashboard funcional".
 
 ## Estado atual (arquivos)
 
-- `data/*.parquet` — 8 famílias: Benign, DDoS, DoS, PortScan, Botnet, Bruteforce, Infiltration, WebAttacks. Nomes "no-metadata". **`data/` está em `.gitignore` → dados não versionados** (rodar Fase 0.0 para baixá-los).
-- `backend/analise_matriz.py` — pipeline RF binário até matriz de confusão (caminhos relativos errados, salva PNG no diretório atual, sem métricas).
-- `backend/tratamento.py` — **quebrado**, será substituído (ver bugs no Contexto).
-- `images/mat_confusao.png` — saída já gerada uma vez.
-- `models/` — **ainda não existe**; será criado na Fase 2 para os artefatos `joblib`.
+- `data/*.parquet` — dados locais não versionados; baixar as 8 famílias do CICIDS2017 conforme Fase 0.0.
+- `backend/preprocessamento.py` — contrato reutilizável de dados para treino, avaliação e dashboard.
+- `backend/inspecionar_dados.py` — inspeção do dataset para validar rótulos, nulos e features.
+- `models/` — diretório mantido com `.gitkeep`; artefatos `joblib` continuam ignorados.
 
 ---
 
@@ -74,7 +68,7 @@ sem erro. **Risco:** se faltar wheel para alguma lib, é sintoma de versão de P
 
 ## Fase 1 — Pré-processamento reutilizável (`backend/preprocessamento.py`)
 
-Substitui o `tratamento.py` quebrado por funções importáveis, reaproveitadas pelas duas etapas
+Centraliza funções importáveis, reaproveitadas pelas duas etapas
 de treino e pelo dashboard. **Carrega as 8 famílias.**
 
 - `DATA_DIR = Path(__file__).parent.parent / "data"` — corrige o bug de caminho.
@@ -82,12 +76,12 @@ de treino e pelo dashboard. **Carrega as 8 famílias.**
 - `limpar(df)` — `inf`→`NaN` + `dropna` (rede de segurança, mesmo que o Kaggle já venha limpo).
   Remover colunas de vazamento com filtro defensivo `[c for c in cols if c in df.columns]`.
 - `criar_targets(df)` — gera **dois rótulos** a partir de `Label`:
-  - `target_bin` → 0 se `Label.strip().upper() == 'BENIGN'`, senão 1 (lógica validada em `analise_matriz.py:35`).
+  - `target_bin` → 0 se `Label.strip().upper() == 'BENIGN'`, senão 1.
   - `target_tipo` → família do ataque (consolidar sub-rótulos: ex. `DoS Hulk`/`DoS GoldenEye`→`DoS`,
     `FTP-Patator`/`SSH-Patator`→`Bruteforce`, `Web Attack *`→`WebAttacks`).
 - `preparar_features(df)` — separa X dos targets; remoção de colunas de variância 0 **ajustada no
   treino** (não no dataset inteiro) — fazer dentro do split/Pipeline para não vazar do teste
-  (o `analise_matriz.py:52` faz no conjunto todo; aqui corrigir).
+  (calcular esse filtro no conjunto todo causaria vazamento; aqui corrigir).
 
 ### 1.A — GATE de verificação dos dados (fazer assim que o pandas estiver instalado)
 
@@ -140,7 +134,7 @@ resultado aqui**:
 5. `StandardScaler` ajustado **só no treino** — **obrigatório p/ LogReg** (dados NÃO normalizados,
    confirmado no GATE 1.A); árvores (DT/RF) dispensam.
 6. Treinar e comparar os 3 modelos: **Decision Tree, Random Forest, Regressão Logística**
-   (RF é o principal — reaproveitar config de `analise_matriz.py:61`).
+   (RF é o principal; manter configuração enxuta para caber em tempo/RAM).
 7. **Seleção:** comparar no conjunto de **validação**; **prioridade = Recall da classe Ataque**
    (minimizar falsos negativos). Considerar **ajustar o limiar** do `predict_proba` (não fixar 0.5)
    na validação para atingir um Recall-alvo.
@@ -211,9 +205,8 @@ Front-end refletindo o pipeline de 2 etapas:
 
 ## Observações / decisões
 
-- `backend/analise_matriz.py`: **extrair** as partes reutilizáveis (lógica do Target, lista de leakage,
-  heatmap) para `preprocessamento.py`/utilidades e então **aposentar** o script (mover p/ `legacy/` ou
-  deletar) para não haver duas fontes de verdade.
+- Scripts exploratórios aposentados não devem permanecer na `main`; `preprocessamento.py` e
+  `visualizacao.py` são as fontes reutilizáveis.
 - `data/` é gitignored → documentar no README de onde baixar (link do Kaggle). `models/` precisa existir
   (criar com `.gitkeep` ou via script).
 - Volume (>2M) exige subamostragem para treino/Search rodarem em tempo razoável.
@@ -225,4 +218,4 @@ Front-end refletindo o pipeline de 2 etapas:
   adicionado GATE de verificação de dados (Fase 1.A); SMOTE movido p/ dentro do Pipeline no CV e
   restrito à Etapa 2; balanceamento da Etapa 1 via subamostragem+`class_weight`; classes raras e
   macro-F1 na Etapa 2; avaliação cascata fim-a-fim; normalização de headers/reindex no dashboard;
-  notas sobre dados não versionados e destino do `analise_matriz.py`.
+  notas sobre dados não versionados e remoção de scripts exploratórios.
