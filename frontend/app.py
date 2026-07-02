@@ -52,36 +52,51 @@ arquivo_csv = st.sidebar.file_uploader("Envie o tráfego de rede (CSV)", type=["
 # -----------------------------------------------------------------------------
 # Funções de Carregamento e Processamento
 # -----------------------------------------------------------------------------
+def _achar_bundle(diretorio_models, candidatos):
+    """Retorna o primeiro candidato que existe em models/ (ou o primeiro nome, para a mensagem de erro)."""
+    for nome in candidatos:
+        caminho = os.path.join(diretorio_models, nome)
+        if os.path.exists(caminho):
+            return caminho
+    return os.path.join(diretorio_models, candidatos[0])
+
 @st.cache_resource
 def carregar_modelos(tipo_modelo):
     """Carrega os bundles baseados na escolha do usuário usando caminhos absolutos."""
+    # Aceita tanto os nomes prefixados (rf_/lr_) quanto os nomes do Contrato 2
+    # do TASKS.md (etapa1.joblib/etapa2.joblib) e os gerados pelos scripts de LogReg
     if tipo_modelo == "Random Forest":
-        prefixo = "rf"
-    else:
-        prefixo = "lr" # Logistic Regression
-    
+        candidatos_e1 = ["rf_etapa1.joblib", "etapa1.joblib"]
+        candidatos_e2 = ["rf_etapa2.joblib", "etapa2.joblib"]
+    else:  # Logistic Regression
+        candidatos_e1 = ["lr_etapa1.joblib", "logreg_etapa1.joblib"]
+        candidatos_e2 = ["lr_etapa2.joblib", "logreg_multiclasse.joblib"]
+
     # Pega o caminho absoluto da pasta onde o app.py está (frontend/)
     diretorio_atual = os.path.dirname(os.path.abspath(__file__))
     # Volta uma pasta para a raiz do projeto (trab_IML/)
     diretorio_raiz = os.path.dirname(diretorio_atual)
-    
-    # Constrói o caminho absoluto até a pasta models
-    caminho_e1 = os.path.join(diretorio_raiz, "models", f"{prefixo}_etapa1.joblib")
-    caminho_e2 = os.path.join(diretorio_raiz, "models", f"{prefixo}_etapa2.joblib")
-    
+    diretorio_models = os.path.join(diretorio_raiz, "models")
+
+    caminho_e1 = _achar_bundle(diretorio_models, candidatos_e1)
+    caminho_e2 = _achar_bundle(diretorio_models, candidatos_e2)
+
     if not os.path.exists(caminho_e1) or not os.path.exists(caminho_e2):
         return None, None, caminho_e1, caminho_e2
-        
+
     bundle1 = joblib.load(caminho_e1)
     bundle2 = joblib.load(caminho_e2)
     return bundle1, bundle2, caminho_e1, caminho_e2
 
 def normalizar_colunas(df):
     """
-    Remove espaços das pontas, normaliza maiúsculas/minúsculas para evitar 
-    erros de tipografia comuns no dataset original (ex: ' Flow Duration').
+    Remove apenas os espaços das pontas dos nomes de coluna (ex: ' Flow Duration'),
+    igual ao limpar() do preprocessamento. Os bundles guardam os nomes originais
+    do treino ("Flow Duration"), então mudar caixa/underscore aqui faria o
+    reindex() não casar nenhuma coluna e zerar todas as features.
     """
-    df.columns = df.columns.str.strip().str.lower().str.replace(' ', '_')
+    df = df.copy()
+    df.columns = df.columns.str.strip()
     return df
 
 # -----------------------------------------------------------------------------
@@ -98,8 +113,12 @@ if bundle_etapa1 is None or bundle_etapa2 is None:
 if arquivo_csv is not None:
     # 1. Carregamento e pré-processamento básico
     df_raw = pd.read_csv(arquivo_csv)
-    df_clean = normalizar_colunas(df_raw.copy())
-    
+    df_clean = normalizar_colunas(df_raw)
+
+    if df_clean.empty:
+        st.warning("O arquivo CSV enviado está vazio. Envie um arquivo com pelo menos um fluxo de rede.")
+        st.stop()
+
     st.write("### Resumo da Captura")
     st.write(f"Total de fluxos analisados: **{len(df_clean)}**")
 
@@ -219,7 +238,8 @@ if arquivo_csv is not None:
     df_exibicao = df_resultados[colunas_presentes].copy()
     
     # Se houver metadados originais como IPs e Portas (ainda que no CICIDS sejam filtrados, se existirem na amostra, mostrar)
-    colunas_contexto = [c for c in ['source_ip', 'destination_ip', 'destination_port', 'protocol'] if c in df_clean.columns]
+    colunas_contexto = [c for c in ['Source IP', 'Src IP', 'Destination IP', 'Dst IP',
+                                    'Destination Port', 'Dst Port', 'Protocol'] if c in df_clean.columns]
     if colunas_contexto:
         df_exibicao = pd.concat([df_clean[colunas_contexto], df_exibicao], axis=1)
 
