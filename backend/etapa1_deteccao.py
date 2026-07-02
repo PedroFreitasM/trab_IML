@@ -30,6 +30,7 @@ from backend.preprocessamento import (
     split,
     filtrar_variancia_zero,
     salvar_bundle,
+    gerar_holdout_canonico,
     DATA_DIR,
     MODELS_DIR
 )
@@ -155,7 +156,12 @@ def main():
         df = limpar(df)
         df = criar_targets(df)
         
-    # 2. Subamostragem de BENIGN
+    # 2. Holdout canônico: separa teste ANTES de qualquer subamostragem
+    idx_teste = gerar_holdout_canonico(df)
+    df = df.loc[~df.index.isin(idx_teste)].copy()
+    print(f"Dados restantes para treino/validação (excl. holdout): {len(df)}")
+
+    # 3. Subamostragem de BENIGN
     df = subamostrar_benign(df, ratio=3.0)
     
     # 3. Preparação de features e split

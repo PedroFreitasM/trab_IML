@@ -24,6 +24,7 @@ from backend.preprocessamento import (
     preparar_features,
     split,
     carregar_bundle,
+    carregar_holdout_canonico,
     DATA_DIR,
     MODELS_DIR
 )
@@ -45,27 +46,32 @@ def main():
     bundle1 = carregar_bundle(caminho_e1)
     bundle2 = carregar_bundle(caminho_e2)
     
-    # 2. Carregar dados do teste (usando o split com seed=42 no amostra.parquet)
+    # 2. Carregar dados de teste a partir do holdout canônico
+    #    (garantia de que nenhuma linha foi vista no treino das Etapas 1/2)
     caminho_amostra = DATA_DIR / "amostra.parquet"
     if not caminho_amostra.exists():
         print(f"Erro: Amostra não encontrada em {caminho_amostra}.")
         return
         
-    print("Carregando conjunto de teste a partir da amostra...")
+    print("Carregando conjunto de teste a partir do holdout canônico...")
     df = pd.read_parquet(caminho_amostra)
     
-    # Filtrar classes com menos de 2 membros para evitar erro no split estratificado
-    contagem = df["target_tipo"].value_counts()
+    try:
+        idx_teste = carregar_holdout_canonico()
+    except FileNotFoundError as e:
+        print(f"Erro: {e}")
+        return
+    
+    df_teste = df.loc[df.index.isin(idx_teste)].copy()
+    
+    # Filtrar classes com menos de 2 membros
+    contagem = df_teste["target_tipo"].value_counts()
     classes_raras = contagem[contagem < 2].index.tolist()
     if classes_raras:
-        print(f"-> AVISO: Removendo classes com menos de 2 membros antes do split: {classes_raras}")
-        df = df[~df["target_tipo"].isin(classes_raras)].copy()
+        print(f"-> AVISO: Removendo classes com menos de 2 membros: {classes_raras}")
+        df_teste = df_teste[~df_teste["target_tipo"].isin(classes_raras)].copy()
         
-    X, y_tipo = preparar_features(df, alvo="target_tipo")
-    
-    particoes = split(X, y_tipo, val=0.15, teste=0.15, seed=42)
-    X_test = particoes["X_test"]
-    y_test_tipo = particoes["y_test"]
+    X_test, y_test_tipo = preparar_features(df_teste, alvo="target_tipo")
     
     print(f"Total de amostras no conjunto de teste: {len(X_test)}")
     
@@ -130,14 +136,18 @@ def main():
     total_ataques = (y_test_tipo != "Benign").sum()
     
     print(f"Total de ataques no teste: {total_ataques}")
-    print(f"Ataques não detectados (Falsos Negativos): {total_erros} ({total_erros / total_ataques * 100:.2f}%)")
+    if total_ataques > 0:
+        print(f"Ataques não detectados (Falsos Negativos): {total_erros} ({total_erros / total_ataques * 100:.2f}%)")
+    else:
+        print("Nenhum ataque presente no conjunto de teste.")
     
     if total_erros > 0:
         print("\nDistribuição dos ataques não detectados por família:")
         dist_erros = y_test_tipo[erros_deteccao].value_counts()
         for tipo, qtd in dist_erros.items():
             qtd_total = (y_test_tipo == tipo).sum()
-            print(f"  - {tipo:<15}: {qtd:>3} de {qtd_total:>3} ({qtd/qtd_total*100:.1f}%)")
+            pct = (qtd / qtd_total * 100) if qtd_total > 0 else 0.0
+            print(f"  - {tipo:<15}: {qtd:>3} de {qtd_total:>3} ({pct:.1f}%)")
             
     print("\nAvaliação cascata (B4) concluída com sucesso!")
 
