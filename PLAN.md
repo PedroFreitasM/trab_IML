@@ -219,3 +219,4 @@ Front-end refletindo o pipeline de 2 etapas:
   restrito à Etapa 2; balanceamento da Etapa 1 via subamostragem+`class_weight`; classes raras e
   macro-F1 na Etapa 2; avaliação cascata fim-a-fim; normalização de headers/reindex no dashboard;
   notas sobre dados não versionados e remoção de scripts exploratórios.
+- **2026-07-02 (interpretabilidade):** adicionado modelo de Árvore de Decisão rasa dedicada para interpretabilidade (Etapas 1 e 2) com suporte a exportação de regras lógicas textuais, plots de estrutura e gráficos de importância integrados ao dashboard Streamlit. Suíte de testes expandida de 12 para 14 testes para cobrir o modelo novo.
