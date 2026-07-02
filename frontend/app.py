@@ -37,21 +37,23 @@ st.title("🛡️ Sistema de Detecção e Identificação de Intrusões")
 st.markdown("Análise de fluxo de tráfego em duas etapas: **Detecção Binária** e **Classificação de Tipo**.")
 
 # -----------------------------------------------------------------------------
-# Configurações da Barra Lateral (Sidebar)
-# -----------------------------------------------------------------------------
-st.sidebar.header("Configurações do Modelo")
-modelo_selecionado = st.sidebar.radio(
-    "Selecione o Algoritmo:",
-    ("Random Forest", "Regressão Logística")
-)
-
-st.sidebar.markdown("---")
-st.sidebar.header("Upload de Tráfego")
-arquivo_csv = st.sidebar.file_uploader("Envie o tráfego de rede (CSV)", type=["csv"])
-
-# -----------------------------------------------------------------------------
 # Funções de Carregamento e Processamento
 # -----------------------------------------------------------------------------
+DIRETORIO_ATUAL = os.path.dirname(os.path.abspath(__file__))
+DIRETORIO_RAIZ = os.path.dirname(DIRETORIO_ATUAL)
+DIRETORIO_MODELS = os.path.join(DIRETORIO_RAIZ, "models")
+
+MODELOS_CANDIDATOS = {
+    "Random Forest": {
+        "etapa1": ["rf_etapa1.joblib", "etapa1.joblib"],
+        "etapa2": ["rf_etapa2.joblib", "etapa2.joblib"],
+    },
+    "Regressão Logística": {
+        "etapa1": ["lr_etapa1.joblib", "logreg_etapa1.joblib"],
+        "etapa2": ["lr_etapa2.joblib", "logreg_multiclasse.joblib"],
+    },
+}
+
 def _achar_bundle(diretorio_models, candidatos):
     """Retorna o primeiro candidato que existe em models/ (ou o primeiro nome, para a mensagem de erro)."""
     for nome in candidatos:
@@ -60,26 +62,18 @@ def _achar_bundle(diretorio_models, candidatos):
             return caminho
     return os.path.join(diretorio_models, candidatos[0])
 
+def modelo_disponivel(tipo_modelo):
+    candidatos = MODELOS_CANDIDATOS[tipo_modelo]
+    caminho_e1 = _achar_bundle(DIRETORIO_MODELS, candidatos["etapa1"])
+    caminho_e2 = _achar_bundle(DIRETORIO_MODELS, candidatos["etapa2"])
+    return os.path.exists(caminho_e1) and os.path.exists(caminho_e2)
+
 @st.cache_resource
 def carregar_modelos(tipo_modelo):
     """Carrega os bundles baseados na escolha do usuário usando caminhos absolutos."""
-    # Aceita tanto os nomes prefixados (rf_/lr_) quanto os nomes do Contrato 2
-    # do TASKS.md (etapa1.joblib/etapa2.joblib) e os gerados pelos scripts de LogReg
-    if tipo_modelo == "Random Forest":
-        candidatos_e1 = ["rf_etapa1.joblib", "etapa1.joblib"]
-        candidatos_e2 = ["rf_etapa2.joblib", "etapa2.joblib"]
-    else:  # Logistic Regression
-        candidatos_e1 = ["lr_etapa1.joblib", "logreg_etapa1.joblib"]
-        candidatos_e2 = ["lr_etapa2.joblib", "logreg_multiclasse.joblib"]
-
-    # Pega o caminho absoluto da pasta onde o app.py está (frontend/)
-    diretorio_atual = os.path.dirname(os.path.abspath(__file__))
-    # Volta uma pasta para a raiz do projeto (trab_IML/)
-    diretorio_raiz = os.path.dirname(diretorio_atual)
-    diretorio_models = os.path.join(diretorio_raiz, "models")
-
-    caminho_e1 = _achar_bundle(diretorio_models, candidatos_e1)
-    caminho_e2 = _achar_bundle(diretorio_models, candidatos_e2)
+    candidatos = MODELOS_CANDIDATOS[tipo_modelo]
+    caminho_e1 = _achar_bundle(DIRETORIO_MODELS, candidatos["etapa1"])
+    caminho_e2 = _achar_bundle(DIRETORIO_MODELS, candidatos["etapa2"])
 
     if not os.path.exists(caminho_e1) or not os.path.exists(caminho_e2):
         return None, None, caminho_e1, caminho_e2
@@ -149,6 +143,36 @@ def traduzir_protocolo(valor):
     }
     nome = protocolos.get(codigo, "Outro")
     return f"{nome} ({codigo})"
+
+# -----------------------------------------------------------------------------
+# Configurações da Barra Lateral (Sidebar)
+# -----------------------------------------------------------------------------
+st.sidebar.header("Configurações do Modelo")
+if st.sidebar.button("Recarregar modelos"):
+    carregar_modelos.clear()
+    st.rerun()
+
+modelos_disponiveis = [nome for nome in MODELOS_CANDIDATOS if modelo_disponivel(nome)]
+modelos_indisponiveis = [nome for nome in MODELOS_CANDIDATOS if nome not in modelos_disponiveis]
+
+if not modelos_disponiveis:
+    st.error("Nenhum par de modelos foi encontrado em `models/`.")
+    st.stop()
+
+if modelos_indisponiveis:
+    st.sidebar.caption(
+        "Indisponível: " + ", ".join(modelos_indisponiveis) +
+        ". Gere os dois bundles da Etapa 1 e Etapa 2 para habilitar."
+    )
+
+modelo_selecionado = st.sidebar.radio(
+    "Selecione o Algoritmo:",
+    modelos_disponiveis
+)
+
+st.sidebar.markdown("---")
+st.sidebar.header("Upload de Tráfego")
+arquivo_csv = st.sidebar.file_uploader("Envie o tráfego de rede (CSV)", type=["csv"])
 
 # -----------------------------------------------------------------------------
 # Lógica Principal da Interface
