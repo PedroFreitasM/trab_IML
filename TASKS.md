@@ -27,7 +27,7 @@ Cada etapa salva um dict auto-suficiente (helpers `salvar_bundle`/`carregar_bund
 {"modelo": clf, "scaler": scaler_ou_None, "colunas": [...], "classes": [...], "limiar": 0.5}
 ```
 
-`backend/gerar_bundle_falso.py` cria `models/etapa1.joblib` e `models/etapa2.joblib` falsos
+`backend/gerar_bundle_falso.py` cria `models/rf_etapa1.joblib` e `models/rf_etapa2.joblib` falsos
 
 > **Escalonamento, filtro de variância, SMOTE e tuning NÃO ficam no preprocessamento** —
 > pertencem ao Pipeline de treino (Track B) e são ajustados **só no treino** (anti-leakage).
@@ -49,10 +49,10 @@ Cada etapa salva um dict auto-suficiente (helpers `salvar_bundle`/`carregar_bund
 
 **Dono:** `backend/etapa1_deteccao.py`, `backend/etapa2_identificacao.py`, `backend/avaliacao.py`
 
-- **B1** Etapa 1 binária: subamostra BENIGN → split → DT/RF/LogReg c/ `class_weight` →
-  métricas na val → **ajuste de limiar** p/ Recall → salva `models/etapa1.joblib`. _(Fase 2)_
-- **B2** Etapa 2 multiclasse: filtra ataques → **StratifiedKFold** → SMOTE-no-Pipeline →
-  **macro-F1** → salva `models/etapa2.joblib`. _(Fase 3)_
+- **B1** Etapa 1 binária: split → DT/RF/LogReg c/ `class_weight` + under-sampling no pipeline →
+  métricas na val → **ajuste de limiar** p/ Recall → salva `models/rf_etapa1.joblib`. _(Fase 2)_
+- **B2** Etapa 2 multiclasse: filtra ataques → **GridSearchCV** → SMOTE-no-Pipeline →
+  **macro-F1** → salva `models/rf_etapa2.joblib`. _(Fase 3)_
 - **B3** Tuning: `RandomizedSearchCV` via **`imblearn.Pipeline`** (sem vazamento) + importância. _(Fase 4)_
 - **B4** **Avaliação cascata** fim-a-fim (teste por Etapa1→Etapa2, incl. "não detectado"). _(Fase 4)_
 
