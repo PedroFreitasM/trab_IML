@@ -1,0 +1,121 @@
+|--- Fwd Seg Size Min <= 28.00
+|   |--- Bwd IAT Min <= 224.27
+|   |   |--- Init Bwd Win Bytes <= 232.00
+|   |   |   |--- Avg Packet Size <= 5.50
+|   |   |   |   |--- Bwd Packets Length Total <= 3.00
+|   |   |   |   |   |--- class: DoS
+|   |   |   |   |--- Bwd Packets Length Total >  3.00
+|   |   |   |   |   |--- class: PortScan
+|   |   |   |--- Avg Packet Size >  5.50
+|   |   |   |   |--- Flow Duration <= 16398.50
+|   |   |   |   |   |--- Flow Bytes/s <= 427430.11
+|   |   |   |   |   |   |--- class: DoS
+|   |   |   |   |   |--- Flow Bytes/s >  427430.11
+|   |   |   |   |   |   |--- class: DDoS
+|   |   |   |   |--- Flow Duration >  16398.50
+|   |   |   |   |   |--- class: DDoS
+|   |   |--- Init Bwd Win Bytes >  232.00
+|   |   |   |--- Init Bwd Win Bytes <= 236.00
+|   |   |   |   |--- class: DoS
+|   |   |   |--- Init Bwd Win Bytes >  236.00
+|   |   |   |   |--- Packet Length Mean <= 4.50
+|   |   |   |   |   |--- class: PortScan
+|   |   |   |   |--- Packet Length Mean >  4.50
+|   |   |   |   |   |--- class: Botnet
+|   |--- Bwd IAT Min >  224.27
+|   |   |--- Bwd IAT Std <= 612.35
+|   |   |   |--- Idle Mean <= 70948808.00
+|   |   |   |   |--- class: DoS
+|   |   |   |--- Idle Mean >  70948808.00
+|   |   |   |   |--- class: PortScan
+|   |   |--- Bwd IAT Std >  612.35
+|   |   |   |--- Bwd Packet Length Max <= 4408.00
+|   |   |   |   |--- class: Botnet
+|   |   |   |--- Bwd Packet Length Max >  4408.00
+|   |   |   |   |--- Bwd Header Length <= 114.00
+|   |   |   |   |   |--- class: DDoS
+|   |   |   |   |--- Bwd Header Length >  114.00
+|   |   |   |   |   |--- class: DoS
+|--- Fwd Seg Size Min >  28.00
+|   |--- Fwd IAT Std <= 1645398.50
+|   |   |--- Fwd Packet Length Std <= 1.54
+|   |   |   |--- ACK Flag Count <= 0.91
+|   |   |   |   |--- URG Flag Count <= 0.27
+|   |   |   |   |   |--- Bwd Packets/s <= 0.01
+|   |   |   |   |   |   |--- class: DoS
+|   |   |   |   |   |--- Bwd Packets/s >  0.01
+|   |   |   |   |   |   |--- Active Mean <= 56.84
+|   |   |   |   |   |   |   |--- class: PortScan
+|   |   |   |   |   |   |--- Active Mean >  56.84
+|   |   |   |   |   |   |   |--- class: PortScan
+|   |   |   |   |--- URG Flag Count >  0.27
+|   |   |   |   |   |--- class: WebAttacks
+|   |   |   |--- ACK Flag Count >  0.91
+|   |   |   |   |--- Init Bwd Win Bytes <= 235.33
+|   |   |   |   |   |--- Fwd IAT Std <= 8007.93
+|   |   |   |   |   |   |--- Bwd Packets/s <= 7494.13
+|   |   |   |   |   |   |   |--- class: DoS
+|   |   |   |   |   |   |--- Bwd Packets/s >  7494.13
+|   |   |   |   |   |   |   |--- class: DoS
+|   |   |   |   |   |--- Fwd IAT Std >  8007.93
+|   |   |   |   |   |   |--- class: DoS
+|   |   |   |   |--- Init Bwd Win Bytes >  235.33
+|   |   |   |   |   |--- Init Fwd Win Bytes <= 260.83
+|   |   |   |   |   |   |--- Init Bwd Win Bytes <= 238.32
+|   |   |   |   |   |   |   |--- class: WebAttacks
+|   |   |   |   |   |   |--- Init Bwd Win Bytes >  238.32
+|   |   |   |   |   |   |   |--- class: Bruteforce
+|   |   |   |   |   |--- Init Fwd Win Bytes >  260.83
+|   |   |   |   |   |   |--- Fwd Packets/s <= 12194.50
+|   |   |   |   |   |   |   |--- class: WebAttacks
+|   |   |   |   |   |   |--- Fwd Packets/s >  12194.50
+|   |   |   |   |   |   |   |--- class: WebAttacks
+|   |   |--- Fwd Packet Length Std >  1.54
+|   |   |   |--- Packet Length Variance <= 67103.36
+|   |   |   |   |--- Bwd Packets/s <= 0.88
+|   |   |   |   |   |--- Avg Bwd Segment Size <= 3.00
+|   |   |   |   |   |   |--- class: DoS
+|   |   |   |   |   |--- Avg Bwd Segment Size >  3.00
+|   |   |   |   |   |   |--- class: DoS
+|   |   |   |   |--- Bwd Packets/s >  0.88
+|   |   |   |   |   |--- Bwd Packets/s <= 10206.85
+|   |   |   |   |   |   |--- Fwd Packet Length Mean <= 1.98
+|   |   |   |   |   |   |   |--- class: Bruteforce
+|   |   |   |   |   |   |--- Fwd Packet Length Mean >  1.98
+|   |   |   |   |   |   |   |--- Bwd IAT Min <= 746.64
+|   |   |   |   |   |   |   |   |--- class: Bruteforce
+|   |   |   |   |   |   |   |--- Bwd IAT Min >  746.64
+|   |   |   |   |   |   |   |   |--- class: Bruteforce
+|   |   |   |   |   |--- Bwd Packets/s >  10206.85
+|   |   |   |   |   |   |--- class: WebAttacks
+|   |   |   |--- Packet Length Variance >  67103.36
+|   |   |   |   |--- Packet Length Mean <= 391.00
+|   |   |   |   |   |--- Bwd IAT Std <= 153862.86
+|   |   |   |   |   |   |--- Bwd Header Length <= 40.17
+|   |   |   |   |   |   |   |--- class: PortScan
+|   |   |   |   |   |   |--- Bwd Header Length >  40.17
+|   |   |   |   |   |   |   |--- class: PortScan
+|   |   |   |   |   |--- Bwd IAT Std >  153862.86
+|   |   |   |   |   |   |--- Bwd Packet Length Std <= 939.30
+|   |   |   |   |   |   |   |--- class: WebAttacks
+|   |   |   |   |   |   |--- Bwd Packet Length Std >  939.30
+|   |   |   |   |   |   |   |--- class: DoS
+|   |   |   |   |--- Packet Length Mean >  391.00
+|   |   |   |   |   |--- class: DoS
+|   |--- Fwd IAT Std >  1645398.50
+|   |   |--- Idle Mean <= 228206.81
+|   |   |   |--- Flow Duration <= 5009726.50
+|   |   |   |   |--- Subflow Fwd Packets <= 2.99
+|   |   |   |   |   |--- class: WebAttacks
+|   |   |   |   |--- Subflow Fwd Packets >  2.99
+|   |   |   |   |   |--- class: PortScan
+|   |   |   |--- Flow Duration >  5009726.50
+|   |   |   |   |--- Avg Bwd Segment Size <= 445.67
+|   |   |   |   |   |--- class: WebAttacks
+|   |   |   |   |--- Avg Bwd Segment Size >  445.67
+|   |   |   |   |   |--- class: DoS
+|   |   |--- Idle Mean >  228206.81
+|   |   |   |--- Fwd Header Length <= 103.91
+|   |   |   |   |--- class: PortScan
+|   |   |   |--- Fwd Header Length >  103.91
+|   |   |   |   |--- class: DoS

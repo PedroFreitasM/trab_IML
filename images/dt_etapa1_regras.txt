@@ -1,0 +1,145 @@
+|--- Bwd Packet Length Std <= 1488.96
+|   |--- Avg Packet Size <= 7.62
+|   |   |--- Fwd IAT Total <= 263.50
+|   |   |   |--- Packet Length Std <= 2.25
+|   |   |   |   |--- Fwd IAT Mean <= 127.50
+|   |   |   |   |   |--- Fwd Header Length <= 88.00
+|   |   |   |   |   |   |--- Init Fwd Win Bytes <= 275.50
+|   |   |   |   |   |   |   |--- class: 0
+|   |   |   |   |   |   |--- Init Fwd Win Bytes >  275.50
+|   |   |   |   |   |   |   |--- class: 0
+|   |   |   |   |   |--- Fwd Header Length >  88.00
+|   |   |   |   |   |   |--- class: 0
+|   |   |   |   |--- Fwd IAT Mean >  127.50
+|   |   |   |   |   |--- Init Fwd Win Bytes <= 275.00
+|   |   |   |   |   |   |--- Init Fwd Win Bytes <= 250.00
+|   |   |   |   |   |   |   |--- class: 0
+|   |   |   |   |   |   |--- Init Fwd Win Bytes >  250.00
+|   |   |   |   |   |   |   |--- class: 1
+|   |   |   |   |   |--- Init Fwd Win Bytes >  275.00
+|   |   |   |   |   |   |--- Flow IAT Max <= 163.00
+|   |   |   |   |   |   |   |--- class: 0
+|   |   |   |   |   |   |--- Flow IAT Max >  163.00
+|   |   |   |   |   |   |   |--- class: 0
+|   |   |   |--- Packet Length Std >  2.25
+|   |   |   |   |--- Down/Up Ratio <= 1.50
+|   |   |   |   |   |--- Fwd Packets/s <= 85.88
+|   |   |   |   |   |   |--- class: 0
+|   |   |   |   |   |--- Fwd Packets/s >  85.88
+|   |   |   |   |   |   |--- Fwd IAT Std <= 33.50
+|   |   |   |   |   |   |   |--- class: 1
+|   |   |   |   |   |   |--- Fwd IAT Std >  33.50
+|   |   |   |   |   |   |   |--- class: 0
+|   |   |   |   |--- Down/Up Ratio >  1.50
+|   |   |   |   |   |--- class: 0
+|   |   |--- Fwd IAT Total >  263.50
+|   |   |   |--- Fwd IAT Min <= 2819.00
+|   |   |   |   |--- Flow IAT Std <= 9.55
+|   |   |   |   |   |--- Fwd Header Length <= 58.00
+|   |   |   |   |   |   |--- class: 0
+|   |   |   |   |   |--- Fwd Header Length >  58.00
+|   |   |   |   |   |   |--- Init Fwd Win Bytes <= 246.50
+|   |   |   |   |   |   |   |--- class: 0
+|   |   |   |   |   |   |--- Init Fwd Win Bytes >  246.50
+|   |   |   |   |   |   |   |--- class: 1
+|   |   |   |   |--- Flow IAT Std >  9.55
+|   |   |   |   |   |--- Init Fwd Win Bytes <= 30394.50
+|   |   |   |   |   |   |--- Active Std <= 32.47
+|   |   |   |   |   |   |   |--- class: 1
+|   |   |   |   |   |   |--- Active Std >  32.47
+|   |   |   |   |   |   |   |--- class: 0
+|   |   |   |   |   |--- Init Fwd Win Bytes >  30394.50
+|   |   |   |   |   |   |--- Flow IAT Std <= 12262.33
+|   |   |   |   |   |   |   |--- class: 0
+|   |   |   |   |   |   |--- Flow IAT Std >  12262.33
+|   |   |   |   |   |   |   |--- class: 0
+|   |   |   |--- Fwd IAT Min >  2819.00
+|   |   |   |   |--- Fwd IAT Min <= 443936.50
+|   |   |   |   |   |--- FIN Flag Count <= 0.50
+|   |   |   |   |   |   |--- Flow Packets/s <= 0.66
+|   |   |   |   |   |   |   |--- class: 0
+|   |   |   |   |   |   |--- Flow Packets/s >  0.66
+|   |   |   |   |   |   |   |--- class: 0
+|   |   |   |   |   |--- FIN Flag Count >  0.50
+|   |   |   |   |   |   |--- Flow Duration <= 12507.00
+|   |   |   |   |   |   |   |--- class: 1
+|   |   |   |   |   |   |--- Flow Duration >  12507.00
+|   |   |   |   |   |   |   |--- class: 1
+|   |   |   |   |--- Fwd IAT Min >  443936.50
+|   |   |   |   |   |--- Fwd Seg Size Min <= 30.00
+|   |   |   |   |   |   |--- Fwd Packets/s <= 2.79
+|   |   |   |   |   |   |   |--- class: 0
+|   |   |   |   |   |   |--- Fwd Packets/s >  2.79
+|   |   |   |   |   |   |   |--- class: 1
+|   |   |   |   |   |--- Fwd Seg Size Min >  30.00
+|   |   |   |   |   |   |--- Bwd Packets/s <= 0.08
+|   |   |   |   |   |   |   |--- class: 1
+|   |   |   |   |   |   |--- Bwd Packets/s >  0.08
+|   |   |   |   |   |   |   |--- class: 0
+|   |--- Avg Packet Size >  7.62
+|   |   |--- Avg Bwd Segment Size <= 12.83
+|   |   |   |--- PSH Flag Count <= 0.50
+|   |   |   |   |--- Fwd Seg Size Min <= 26.00
+|   |   |   |   |   |--- ACK Flag Count <= 0.50
+|   |   |   |   |   |   |--- Packet Length Mean <= 7.08
+|   |   |   |   |   |   |   |--- class: 0
+|   |   |   |   |   |   |--- Packet Length Mean >  7.08
+|   |   |   |   |   |   |   |--- class: 0
+|   |   |   |   |   |--- ACK Flag Count >  0.50
+|   |   |   |   |   |   |--- Fwd IAT Total <= 99600000.00
+|   |   |   |   |   |   |   |--- class: 0
+|   |   |   |   |   |   |--- Fwd IAT Total >  99600000.00
+|   |   |   |   |   |   |   |--- class: 0
+|   |   |   |   |--- Fwd Seg Size Min >  26.00
+|   |   |   |   |   |--- Fwd Packets Length Total <= 18.00
+|   |   |   |   |   |   |--- class: 1
+|   |   |   |   |   |--- Fwd Packets Length Total >  18.00
+|   |   |   |   |   |   |--- Avg Fwd Segment Size <= 149.38
+|   |   |   |   |   |   |   |--- class: 0
+|   |   |   |   |   |   |--- Avg Fwd Segment Size >  149.38
+|   |   |   |   |   |   |   |--- class: 1
+|   |   |   |--- PSH Flag Count >  0.50
+|   |   |   |   |--- Fwd IAT Total <= 2404741.00
+|   |   |   |   |   |--- class: 0
+|   |   |   |   |--- Fwd IAT Total >  2404741.00
+|   |   |   |   |   |--- Init Bwd Win Bytes <= 287.50
+|   |   |   |   |   |   |--- class: 1
+|   |   |   |   |   |--- Init Bwd Win Bytes >  287.50
+|   |   |   |   |   |   |--- class: 1
+|   |   |--- Avg Bwd Segment Size >  12.83
+|   |   |   |--- Bwd Packet Length Std <= 1252.08
+|   |   |   |   |--- Bwd Header Length <= 992.00
+|   |   |   |   |   |--- Down/Up Ratio <= 1.50
+|   |   |   |   |   |   |--- Init Bwd Win Bytes <= 228.00
+|   |   |   |   |   |   |   |--- class: 0
+|   |   |   |   |   |   |--- Init Bwd Win Bytes >  228.00
+|   |   |   |   |   |   |   |--- class: 0
+|   |   |   |   |   |--- Down/Up Ratio >  1.50
+|   |   |   |   |   |   |--- Fwd Seg Size Min <= 26.00
+|   |   |   |   |   |   |   |--- class: 0
+|   |   |   |   |   |   |--- Fwd Seg Size Min >  26.00
+|   |   |   |   |   |   |   |--- class: 1
+|   |   |   |   |--- Bwd Header Length >  992.00
+|   |   |   |   |   |--- Subflow Bwd Bytes <= 2966.50
+|   |   |   |   |   |   |--- class: 1
+|   |   |   |   |   |--- Subflow Bwd Bytes >  2966.50
+|   |   |   |   |   |   |--- Fwd Packets Length Total <= 40160.00
+|   |   |   |   |   |   |   |--- class: 0
+|   |   |   |   |   |   |--- Fwd Packets Length Total >  40160.00
+|   |   |   |   |   |   |   |--- class: 0
+|   |   |   |--- Bwd Packet Length Std >  1252.08
+|   |   |   |   |--- Init Fwd Win Bytes <= 331.50
+|   |   |   |   |   |--- class: 1
+|   |   |   |   |--- Init Fwd Win Bytes >  331.50
+|   |   |   |   |   |--- Fwd IAT Std <= 20692.74
+|   |   |   |   |   |   |--- class: 1
+|   |   |   |   |   |--- Fwd IAT Std >  20692.74
+|   |   |   |   |   |   |--- class: 0
+|--- Bwd Packet Length Std >  1488.96
+|   |--- Init Bwd Win Bytes <= 175.50
+|   |   |--- class: 0
+|   |--- Init Bwd Win Bytes >  175.50
+|   |   |--- Packet Length Mean <= 386.95
+|   |   |   |--- class: 1
+|   |   |--- Packet Length Mean >  386.95
+|   |   |   |--- class: 1

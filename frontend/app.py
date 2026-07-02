@@ -52,6 +52,10 @@ MODELOS_CANDIDATOS = {
         "etapa1": ["lr_etapa1.joblib", "logreg_etapa1.joblib"],
         "etapa2": ["lr_etapa2.joblib", "logreg_multiclasse.joblib"],
     },
+    "Árvore de Decisão": {
+        "etapa1": ["dt_etapa1.joblib"],
+        "etapa2": ["dt_etapa2.joblib"],
+    },
 }
 
 def _achar_bundle(diretorio_models, candidatos):
@@ -351,6 +355,39 @@ if arquivo_csv is not None:
         use_container_width=True,
         height=altura_tabela
     )
+
+    # =========================================================================
+    # Interpretabilidade (apenas para Árvore de Decisão)
+    # =========================================================================
+    if modelo_selecionado == "Árvore de Decisão":
+        st.markdown("---")
+        st.subheader("🌳 Interpretabilidade da Árvore de Decisão")
+        
+        diretorio_raiz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        
+        with st.expander("Visualização da Árvore (Etapa 1 - Detecção)", expanded=False):
+            img_path_e1 = os.path.join(diretorio_raiz, "images", "dt_etapa1_arvore.png")
+            if os.path.exists(img_path_e1):
+                st.image(img_path_e1, caption="Árvore de Decisão - Detecção Binária", use_container_width=True)
+            else:
+                st.info("Execute `python backend/dt_interpretabilidade.py` para gerar a visualização.")
+            
+            regras_path_e1 = os.path.join(diretorio_raiz, "images", "dt_etapa1_regras.txt")
+            if os.path.exists(regras_path_e1):
+                with open(regras_path_e1, "r", encoding="utf-8") as f:
+                    st.code(f.read(), language="text")
+        
+        with st.expander("Visualização da Árvore (Etapa 2 - Classificação)", expanded=False):
+            img_path_e2 = os.path.join(diretorio_raiz, "images", "dt_etapa2_arvore.png")
+            if os.path.exists(img_path_e2):
+                st.image(img_path_e2, caption="Árvore de Decisão - Identificação de Ataques", use_container_width=True)
+            else:
+                st.info("Execute `python backend/dt_interpretabilidade.py` para gerar a visualização.")
+            
+            regras_path_e2 = os.path.join(diretorio_raiz, "images", "dt_etapa2_regras.txt")
+            if os.path.exists(regras_path_e2):
+                with open(regras_path_e2, "r", encoding="utf-8") as f:
+                    st.code(f.read(), language="text")
 
 else:
     # Estado inicial (sem arquivo)
