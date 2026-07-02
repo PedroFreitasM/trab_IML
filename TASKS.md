@@ -27,7 +27,8 @@ Cada etapa salva um dict auto-suficiente (helpers `salvar_bundle`/`carregar_bund
 {"modelo": clf, "scaler": scaler_ou_None, "colunas": [...], "classes": [...], "limiar": 0.5}
 ```
 
-`backend/gerar_bundle_falso.py` cria `models/rf_etapa1.joblib` e `models/rf_etapa2.joblib` falsos
+Os scripts de treino geram bundles reais em `models/`: `etapa1_deteccao.py`,
+`etapa2_identificacao.py`, `lr_modelagem.py` e `dt_interpretabilidade.py`.
 
 > **Escalonamento, filtro de variância, SMOTE e tuning NÃO ficam no preprocessamento** —
 > pertencem ao Pipeline de treino (Track B) e são ajustados **só no treino** (anti-leakage).
@@ -63,11 +64,11 @@ Começa contra o Contrato 1 + `amostra.parquet`. Usa `visualizacao.plotar_matriz
 **Dono:** `frontend/app.py`, `backend/visualizacao.py`, `README.md`
 
 - **C1** Esqueleto Streamlit + `file_uploader` + **normalizar headers** + **reindexar p/
-  `colunas` salvas** + `carregar_bundle` (contra o **bundle falso**). _(Fase 5)_
+  `colunas` salvas** + `carregar_bundle` (contra bundles reais gerados pelo Track B). _(Fase 5)_
 - **C2** Fluxo 2 etapas + confiança (`predict_proba`) + alertas **vermelho/verde** + KPIs. _(Fase 5)_
 - **C3** Gráficos dinâmicos (volume, distribuição por tipo) + nota de **supervisão humana**. _(Fase 5)_
 - **C4** `visualizacao.py` (heatmap reutilizável, **reusado por B**) +
   README "como rodar" + doc de download dos dados.
 - **C5** `@st.cache_resource`, polimento, figuras para o relatório. _(Fase 5)_
 
-Começa com o **bundle falso** + dados dummy; integra com modelos reais no M3.
+Começa com bundles reais gerados pelo Track B + dados de teste locais.

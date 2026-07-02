@@ -39,7 +39,7 @@ def main():
     
     if not caminho_e1.exists() or not caminho_e2.exists():
         print("Erro: Os bundles rf_etapa1.joblib e/ou rf_etapa2.joblib não foram encontrados em models/")
-        print("Por favor, execute gerar_bundle_falso.py ou os scripts etapa1_deteccao.py e etapa2_identificacao.py primeiro.")
+        print("Por favor, execute etapa1_deteccao.py e etapa2_identificacao.py primeiro.")
         return
         
     print("Carregando bundles...")
