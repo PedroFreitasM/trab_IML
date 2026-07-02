@@ -37,21 +37,27 @@ st.title("🛡️ Sistema de Detecção e Identificação de Intrusões")
 st.markdown("Análise de fluxo de tráfego em duas etapas: **Detecção Binária** e **Classificação de Tipo**.")
 
 # -----------------------------------------------------------------------------
-# Configurações da Barra Lateral (Sidebar)
-# -----------------------------------------------------------------------------
-st.sidebar.header("Configurações do Modelo")
-modelo_selecionado = st.sidebar.radio(
-    "Selecione o Algoritmo:",
-    ("Random Forest", "Regressão Logística", "Árvore de Decisão")
-)
-
-st.sidebar.markdown("---")
-st.sidebar.header("Upload de Tráfego")
-arquivo_csv = st.sidebar.file_uploader("Envie o tráfego de rede (CSV)", type=["csv"])
-
-# -----------------------------------------------------------------------------
 # Funções de Carregamento e Processamento
 # -----------------------------------------------------------------------------
+DIRETORIO_ATUAL = os.path.dirname(os.path.abspath(__file__))
+DIRETORIO_RAIZ = os.path.dirname(DIRETORIO_ATUAL)
+DIRETORIO_MODELS = os.path.join(DIRETORIO_RAIZ, "models")
+
+MODELOS_CANDIDATOS = {
+    "Random Forest": {
+        "etapa1": ["rf_etapa1.joblib", "etapa1.joblib"],
+        "etapa2": ["rf_etapa2.joblib", "etapa2.joblib"],
+    },
+    "Regressão Logística": {
+        "etapa1": ["lr_etapa1.joblib", "logreg_etapa1.joblib"],
+        "etapa2": ["lr_etapa2.joblib", "logreg_multiclasse.joblib"],
+    },
+    "Árvore de Decisão": {
+        "etapa1": ["dt_etapa1.joblib"],
+        "etapa2": ["dt_etapa2.joblib"],
+    },
+}
+
 def _achar_bundle(diretorio_models, candidatos):
     """Retorna o primeiro candidato que existe em models/ (ou o primeiro nome, para a mensagem de erro)."""
     for nome in candidatos:
@@ -60,29 +66,18 @@ def _achar_bundle(diretorio_models, candidatos):
             return caminho
     return os.path.join(diretorio_models, candidatos[0])
 
+def modelo_disponivel(tipo_modelo):
+    candidatos = MODELOS_CANDIDATOS[tipo_modelo]
+    caminho_e1 = _achar_bundle(DIRETORIO_MODELS, candidatos["etapa1"])
+    caminho_e2 = _achar_bundle(DIRETORIO_MODELS, candidatos["etapa2"])
+    return os.path.exists(caminho_e1) and os.path.exists(caminho_e2)
+
 @st.cache_resource
 def carregar_modelos(tipo_modelo):
     """Carrega os bundles baseados na escolha do usuário usando caminhos absolutos."""
-    # Aceita tanto os nomes prefixados (rf_/lr_) quanto os nomes do Contrato 2
-    # do TASKS.md (etapa1.joblib/etapa2.joblib) e os gerados pelos scripts de LogReg
-    if tipo_modelo == "Random Forest":
-        candidatos_e1 = ["rf_etapa1.joblib", "etapa1.joblib"]
-        candidatos_e2 = ["rf_etapa2.joblib", "etapa2.joblib"]
-    elif tipo_modelo == "Regressão Logística":
-        candidatos_e1 = ["lr_etapa1.joblib", "logreg_etapa1.joblib"]
-        candidatos_e2 = ["lr_etapa2.joblib", "logreg_multiclasse.joblib"]
-    else:  # Árvore de Decisão
-        candidatos_e1 = ["dt_etapa1.joblib"]
-        candidatos_e2 = ["dt_etapa2.joblib"]
-
-    # Pega o caminho absoluto da pasta onde o app.py está (frontend/)
-    diretorio_atual = os.path.dirname(os.path.abspath(__file__))
-    # Volta uma pasta para a raiz do projeto (trab_IML/)
-    diretorio_raiz = os.path.dirname(diretorio_atual)
-    diretorio_models = os.path.join(diretorio_raiz, "models")
-
-    caminho_e1 = _achar_bundle(diretorio_models, candidatos_e1)
-    caminho_e2 = _achar_bundle(diretorio_models, candidatos_e2)
+    candidatos = MODELOS_CANDIDATOS[tipo_modelo]
+    caminho_e1 = _achar_bundle(DIRETORIO_MODELS, candidatos["etapa1"])
+    caminho_e2 = _achar_bundle(DIRETORIO_MODELS, candidatos["etapa2"])
 
     if not os.path.exists(caminho_e1) or not os.path.exists(caminho_e2):
         return None, None, caminho_e1, caminho_e2
@@ -101,6 +96,87 @@ def normalizar_colunas(df):
     df = df.copy()
     df.columns = df.columns.str.strip()
     return df
+
+def preparar_entrada_modelo(df, bundle):
+    """Alinha o CSV ao contrato do bundle e garante matriz numérica para inferência."""
+    X = df.reindex(columns=bundle["colunas"], fill_value=0)
+    X = X.apply(pd.to_numeric, errors="coerce")
+    X = X.replace([np.inf, -np.inf], np.nan).fillna(0)
+
+    scaler = bundle.get("scaler")
+    if scaler is not None:
+        return scaler.transform(X)
+    return X
+
+def classes_do_modelo(modelo):
+    """Obtém classes tanto de estimadores diretos quanto de pipelines sklearn/imblearn."""
+    classes = getattr(modelo, "classes_", None)
+    if classes is None and hasattr(modelo, "named_steps"):
+        estimador_final = modelo.named_steps.get("model")
+        classes = getattr(estimador_final, "classes_", None)
+    return list(classes) if classes is not None else []
+
+def indice_classe(modelo, classe, n_colunas_proba, fallback=1):
+    """Resolve o índice de uma classe em predict_proba sem assumir formato do modelo."""
+    classes = classes_do_modelo(modelo)
+    if classe in classes:
+        return classes.index(classe)
+    classe_str = str(classe)
+    if classe_str in classes:
+        return classes.index(classe_str)
+    return fallback if fallback < n_colunas_proba else n_colunas_proba - 1
+
+def traduzir_protocolo(valor):
+    """Converte números de protocolo IP para nomes conhecidos sem perder o código original."""
+    try:
+        codigo = int(float(valor))
+    except (TypeError, ValueError):
+        return valor
+
+    protocolos = {
+        1: "ICMP",
+        2: "IGMP",
+        6: "TCP",
+        17: "UDP",
+        47: "GRE",
+        50: "ESP",
+        51: "AH",
+        58: "ICMPv6",
+        89: "OSPF",
+        132: "SCTP",
+    }
+    nome = protocolos.get(codigo, "Outro")
+    return f"{nome} ({codigo})"
+
+# -----------------------------------------------------------------------------
+# Configurações da Barra Lateral (Sidebar)
+# -----------------------------------------------------------------------------
+st.sidebar.header("Configurações do Modelo")
+if st.sidebar.button("Recarregar modelos"):
+    carregar_modelos.clear()
+    st.rerun()
+
+modelos_disponiveis = [nome for nome in MODELOS_CANDIDATOS if modelo_disponivel(nome)]
+modelos_indisponiveis = [nome for nome in MODELOS_CANDIDATOS if nome not in modelos_disponiveis]
+
+if not modelos_disponiveis:
+    st.error("Nenhum par de modelos foi encontrado em `models/`.")
+    st.stop()
+
+if modelos_indisponiveis:
+    st.sidebar.caption(
+        "Indisponível: " + ", ".join(modelos_indisponiveis) +
+        ". Gere os dois bundles da Etapa 1 e Etapa 2 para habilitar."
+    )
+
+modelo_selecionado = st.sidebar.radio(
+    "Selecione o Algoritmo:",
+    modelos_disponiveis
+)
+
+st.sidebar.markdown("---")
+st.sidebar.header("Upload de Tráfego")
+arquivo_csv = st.sidebar.file_uploader("Envie o tráfego de rede (CSV)", type=["csv"])
 
 # -----------------------------------------------------------------------------
 # Lógica Principal da Interface
@@ -131,25 +207,22 @@ if arquivo_csv is not None:
     # =========================================================================
     # PIPELINE ETAPA 1: Detecção Binária (Ataque vs Normal)
     # =========================================================================
-    # Reindexar garantindo exatamente as colunas usadas no treino da etapa 1
-    X1 = df_clean.reindex(columns=bundle_etapa1["colunas"], fill_value=0)
-    
-    if bundle_etapa1.get("scaler"):
-        X1 = bundle_etapa1["scaler"].transform(X1)
-        
+    X1 = preparar_entrada_modelo(df_clean, bundle_etapa1)
     modelo1 = bundle_etapa1["modelo"]
     probs_e1 = modelo1.predict_proba(X1)
     
-    # Assume que a classe 1 (Ataque) é o índice 1 nas probabilidades
-    idx_classe_ataque = list(modelo1.classes_).index(1) if 1 in modelo1.classes_ else 1
+    idx_classe_ataque = indice_classe(modelo1, 1, probs_e1.shape[1], fallback=1)
     prob_ataque = probs_e1[:, idx_classe_ataque]
     limiar1 = bundle_etapa1.get("limiar", 0.5)
     
     # Classificação com base no limiar otimizado para Recall
     df_resultados["Alerta (Etapa 1)"] = np.where(prob_ataque >= limiar1, "Ataque", "Normal")
-    df_resultados["Confiança_Anomalia"] = np.round(prob_ataque * 100, 2)
+    df_resultados["Confiança Resultado (%)"] = np.round(
+        np.where(df_resultados["Alerta (Etapa 1)"] == "Ataque", prob_ataque, 1 - prob_ataque) * 100,
+        2
+    )
     df_resultados["Tipo de Ataque (Etapa 2)"] = "N/A"
-    df_resultados["Confiança_Tipo"] = 0.0
+    df_resultados["Confiança Tipo (%)"] = np.nan
 
     # =========================================================================
     # PIPELINE ETAPA 2: Identificação do Tipo (Apenas nos fluxos anômalos)
@@ -159,15 +232,13 @@ if arquivo_csv is not None:
     if len(indices_ataques) > 0:
         df_ataques = df_clean.loc[indices_ataques]
         
-        # Reindexar para as colunas exatas da etapa 2
-        X2 = df_ataques.reindex(columns=bundle_etapa2["colunas"], fill_value=0)
-        
-        if bundle_etapa2.get("scaler"):
-            X2 = bundle_etapa2["scaler"].transform(X2)
-            
+        X2 = preparar_entrada_modelo(df_ataques, bundle_etapa2)
         modelo2 = bundle_etapa2["modelo"]
         preds_e2 = modelo2.predict(X2)
-        probs_e2 = np.max(modelo2.predict_proba(X2), axis=1)
+        if hasattr(modelo2, "predict_proba"):
+            probs_e2 = np.max(modelo2.predict_proba(X2), axis=1)
+        else:
+            probs_e2 = np.ones(len(preds_e2))
         
         # Mapeamento de classes (se existirem) ou uso direto das predições
         if "classes" in bundle_etapa2:
@@ -179,7 +250,7 @@ if arquivo_csv is not None:
             preds_nome = preds_e2
             
         df_resultados.loc[indices_ataques, "Tipo de Ataque (Etapa 2)"] = preds_nome
-        df_resultados.loc[indices_ataques, "Confiança_Tipo"] = np.round(probs_e2 * 100, 2)
+        df_resultados.loc[indices_ataques, "Confiança Tipo (%)"] = np.round(probs_e2 * 100, 2)
 
     # =========================================================================
     # Visualização de Dados (Métricas e Gráficos)
@@ -234,7 +305,12 @@ if arquivo_csv is not None:
         return f'background-color: {cor}'
     
     # Monta a tabela final combinando infos vitais
-    colunas_exibicao = ["Alerta (Etapa 1)", "Confiança_Anomalia", "Tipo de Ataque (Etapa 2)", "Confiança_Tipo"]
+    colunas_exibicao = [
+        "Alerta (Etapa 1)",
+        "Confiança Resultado (%)",
+        "Tipo de Ataque (Etapa 2)",
+        "Confiança Tipo (%)",
+    ]
     
     # CORREÇÃO APLICADA: Filtra de forma segura pegando apenas as colunas que realmente foram criadas
     colunas_presentes = [col for col in colunas_exibicao if col in df_resultados.columns]
@@ -244,12 +320,40 @@ if arquivo_csv is not None:
     colunas_contexto = [c for c in ['Source IP', 'Src IP', 'Destination IP', 'Dst IP',
                                     'Destination Port', 'Dst Port', 'Protocol'] if c in df_clean.columns]
     if colunas_contexto:
-        df_exibicao = pd.concat([df_clean[colunas_contexto], df_exibicao], axis=1)
+        df_contexto = df_clean[colunas_contexto].copy()
+        if "Protocol" in df_contexto.columns:
+            df_contexto["Protocolo"] = df_contexto["Protocol"].apply(traduzir_protocolo)
+            df_contexto = df_contexto.drop(columns=["Protocol"])
+        df_exibicao = pd.concat([df_contexto, df_exibicao], axis=1)
+
+    total_linhas = len(df_exibicao)
+    opcoes_por_pagina = [25, 50, 100, 200]
+    linhas_por_pagina = st.selectbox(
+        "Itens por página",
+        opcoes_por_pagina,
+        index=1,
+        key="alertas_itens_por_pagina",
+    )
+    total_paginas = max(1, int(np.ceil(total_linhas / linhas_por_pagina)))
+    pagina = st.number_input(
+        "Página",
+        min_value=1,
+        max_value=total_paginas,
+        value=1,
+        step=1,
+        key="alertas_pagina",
+    )
+    inicio = (pagina - 1) * linhas_por_pagina
+    fim = min(inicio + linhas_por_pagina, total_linhas)
+    df_pagina = df_exibicao.iloc[inicio:fim]
+
+    st.caption(f"Exibindo {inicio + 1}-{fim} de {total_linhas} fluxos")
+    altura_tabela = min(760, max(300, 38 * (len(df_pagina) + 1)))
 
     st.dataframe(
-        df_exibicao.style.map(colorir_alerta, subset=['Alerta (Etapa 1)']),
+        df_pagina.style.map(colorir_alerta, subset=['Alerta (Etapa 1)']),
         use_container_width=True,
-        height=400
+        height=altura_tabela
     )
 
     # =========================================================================

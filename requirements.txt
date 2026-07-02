@@ -15,7 +15,7 @@
 #   py -3.12 -m venv .venv ; .venv\Scripts\python.exe -m pip install -r requirements.txt
 #
 # Validar:
-#   .venv\Scripts\python.exe -c "import pandas, sklearn, imblearn, streamlit, seaborn, pyarrow"
+#   .venv\Scripts\python.exe -c "import pandas, sklearn, imblearn, streamlit, seaborn, pyarrow, plotly"
 # =====================================================================
 
 # --- Manipulacao de dados ---
@@ -34,3 +34,4 @@ seaborn==0.13.2
 
 # --- Dashboard ---
 streamlit==1.37.0
+plotly==6.8.0
