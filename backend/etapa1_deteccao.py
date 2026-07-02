@@ -3,9 +3,10 @@
 Etapa 1: Detecção Binária (Ataque vs. Normal)
 Parte do Track B do pipeline CICIDS2017.
 
-Carrega a amostra, subamostra a classe BENIGN, divide em Treino/Validação/Teste,
-treina Decision Tree, Random Forest e Regressão Logística, compara resultados,
-ajusta o limiar para priorizar o Recall de ataques e salva o bundle do modelo.
+Carrega a amostra, separa holdout canônico, divide em Treino/Validação/Teste,
+compara Decision Tree, Random Forest e Regressão Logística via GridSearchCV,
+rebalanceia apenas nos folds de treino, ajusta o limiar para priorizar o Recall
+de ataques e salva o bundle do modelo.
 """
 
 import sys
@@ -32,73 +33,12 @@ from backend.preprocessamento import (
     criar_targets,
     preparar_features,
     split,
-    filtrar_variancia_zero,
     salvar_bundle,
     gerar_holdout_canonico,
     DATA_DIR,
     MODELS_DIR
 )
 from backend.visualizacao import plotar_matriz_confusao
-
-def subamostrar_benign(df: pd.DataFrame, ratio: float = 3.0, seed: int = 42) -> pd.DataFrame:
-    """Subamostra a classe BENIGN para ter no máximo ratio * total_ataques."""
-    df_benign = df[df["target_bin"] == 0]
-    df_ataque = df[df["target_bin"] == 1]
-    
-    n_ataques = len(df_ataque)
-    n_benign_desejado = int(n_ataques * ratio)
-    
-    if len(df_benign) > n_benign_desejado:
-        df_benign_sampled = df_benign.sample(n=n_benign_desejado, random_state=seed)
-        df_final = pd.concat([df_benign_sampled, df_ataque], ignore_index=True)
-        print(f"-> Subamostragem BENIGN: reduzido de {len(df_benign)} para {len(df_benign_sampled)} (ratio {ratio}:1)")
-        return df_final
-    return df
-
-def treinar_e_avaliar_modelos(X_train, y_train, X_val, y_val):
-    """Treina DT, RF e Regressão Logística, e retorna os modelos e suas métricas."""
-    # 1. Preparação dos dados para Regressão Logística (requer normalização)
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_val_scaled = scaler.transform(X_val)
-    
-    # 2. Definição dos classificadores
-    modelos = {
-        "Decision Tree": DecisionTreeClassifier(max_depth=10, random_state=42, class_weight='balanced'),
-        "Random Forest": RandomForestClassifier(n_estimators=50, max_depth=10, random_state=42, n_jobs=-1, class_weight='balanced'),
-        "Logistic Regression": LogisticRegression(max_iter=1000, random_state=42, class_weight='balanced')
-    }
-    
-    resultados = {}
-    
-    for nome, clf in modelos.items():
-        print(f"\nTreinando {nome}...")
-        # Usa features normalizadas apenas para Regressão Logística
-        if nome == "Logistic Regression":
-            clf.fit(X_train_scaled, y_train)
-            preds_val = clf.predict(X_val_scaled)
-            probas_val = clf.predict_proba(X_val_scaled)[:, 1]
-        else:
-            clf.fit(X_train, y_train)
-            preds_val = clf.predict(X_val)
-            probas_val = clf.predict_proba(X_val)[:, 1]
-            
-        rec = recall_score(y_val, preds_val)
-        prec = precision_score(y_val, preds_val)
-        f1 = f1_score(y_val, preds_val)
-        
-        print(f"[{nome} - Validação (limiar 0.5)] Recall: {rec:.4f} | Precision: {prec:.4f} | F1: {f1:.4f}")
-        
-        resultados[nome] = {
-            "modelo": clf,
-            "recall": rec,
-            "precision": prec,
-            "f1": f1,
-            "probas_val": probas_val,
-            "scaler": scaler if nome == "Logistic Regression" else None
-        }
-        
-    return resultados
 
 def otimizar_limiar(y_val, probas_val, recall_alvo=0.98):
     """Encontra o maior limiar que atinge pelo menos o recall_alvo."""
@@ -165,7 +105,7 @@ def main():
     df_treino_val = df.loc[~df.index.isin(idx_teste)].copy()
     print(f"Dados restantes para treino/validação (excl. holdout): {len(df_treino_val)}")
 
-    # 3. Preparação de features e split (treino/validação/teste) ANTES de qualquer subamostragem
+    # 3. Preparação de features e split; rebalanceamento ocorre apenas nos folds de treino do pipeline.
     X, y = preparar_features(df_treino_val, alvo="target_bin")
     print(f"Total de features originais: {X.shape[1]}")
     
@@ -267,7 +207,7 @@ def main():
             print(f"{col:<35}: {imp:.4f}")
             
     # 9. Salvar o bundle
-    caminho_bundle = MODELS_DIR / "etapa1.joblib"
+    caminho_bundle = MODELS_DIR / "rf_etapa1.joblib"
     print(f"\nSalvando o bundle do modelo em: {caminho_bundle}")
     salvar_bundle(
         caminho=caminho_bundle,

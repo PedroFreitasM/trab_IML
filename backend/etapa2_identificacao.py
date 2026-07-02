@@ -4,22 +4,22 @@ Etapa 2: Identificação do Tipo de Ataque (Multiclasse)
 Parte do Track B do pipeline CICIDS2017.
 
 Filtra apenas registros de ataque, limpa classes ultra-raras para viabilizar o SMOTE/CV,
-compara Decision Tree, Random Forest e Regressão Logística usando 5-Fold Stratified CV,
+compara Decision Tree, Random Forest e Regressão Logística usando GridSearchCV,
 aplica SMOTE e normalização dentro do pipeline para evitar vazamento de dados,
-avalia a performance com macro-F1, gera gráficos e salva o bundle em models/etapa2.joblib.
+avalia a performance com macro-F1, gera gráficos e salva o bundle em models/rf_etapa2.joblib.
 """
 
 import sys
 from pathlib import Path
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import StratifiedKFold, train_test_split, GridSearchCV
+from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.feature_selection import VarianceThreshold
-from sklearn.metrics import classification_report, confusion_matrix, f1_score
+from sklearn.metrics import classification_report, confusion_matrix
 from imblearn.pipeline import Pipeline
 from imblearn.over_sampling import SMOTE
 
@@ -39,16 +39,21 @@ from backend.preprocessamento import (
 )
 from backend.visualizacao import plotar_matriz_confusao
 
+CV_SPLITS = 5
+SMOTE_K_NEIGHBORS = 5
+MIN_SAMPLES_POR_CLASSE = 10
+
 def filtrar_e_preparar_ataques(df: pd.DataFrame) -> pd.DataFrame:
     """Filtra apenas os fluxos de ataque (target_bin == 1)."""
     df_ataques = df[df["target_bin"] == 1].copy()
     print(f"-> Filtrado apenas ataques. Total de registros: {len(df_ataques)}")
     return df_ataques
 
-def limpar_classes_raras(df: pd.DataFrame, min_samples: int = 6) -> pd.DataFrame:
+def limpar_classes_raras(df: pd.DataFrame, min_samples: int = MIN_SAMPLES_POR_CLASSE) -> pd.DataFrame:
     """Remove classes com contagem de amostras inferior a min_samples.
     
-    Necessário para permitir a divisão no StratifiedKFold e funcionamento do SMOTE.
+    O valor padrão garante que, após o split 85/15, cada classe mantenha
+    amostras suficientes nos folds de treino para o SMOTE(k_neighbors=5).
     """
     contagem = df["target_tipo"].value_counts()
     classes_raras = contagem[contagem < min_samples].index.tolist()
@@ -60,46 +65,6 @@ def limpar_classes_raras(df: pd.DataFrame, min_samples: int = 6) -> pd.DataFrame
         df = df[~df["target_tipo"].isin(classes_raras)].copy()
         print(f"-> Registros após remoção de classes raras: {len(df)}")
     return df
-
-def avaliar_cv(X, y):
-    """Executa a validação cruzada 5-Fold Stratified para comparar DT, RF e Regressão Logística."""
-    print("\n=== VALIDAÇÃO CRUZADA (5-Fold Stratified CV com SMOTE-no-Pipeline) ===")
-    
-    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-    
-    # Definição dos pipelines
-    pipelines = {
-        "Decision Tree": Pipeline([
-            ("variance", VarianceThreshold()),
-            ("smote", SMOTE(random_state=42)),
-            ("model", DecisionTreeClassifier(max_depth=10, random_state=42, class_weight="balanced"))
-        ]),
-        "Random Forest": Pipeline([
-            ("variance", VarianceThreshold()),
-            ("smote", SMOTE(random_state=42)),
-            ("model", RandomForestClassifier(n_estimators=50, max_depth=10, random_state=42, n_jobs=-1, class_weight="balanced"))
-        ]),
-        "Logistic Regression": Pipeline([
-            ("variance", VarianceThreshold()),
-            ("scaler", StandardScaler()),
-            ("smote", SMOTE(random_state=42)),
-            ("model", LogisticRegression(max_iter=1000, random_state=42, class_weight="balanced"))
-        ])
-    }
-    
-    for nome, pip in pipelines.items():
-        macro_f1s = []
-        for train_idx, val_idx in cv.split(X, y):
-            X_tr_fold, X_va_fold = X.iloc[train_idx], X.iloc[val_idx]
-            y_tr_fold, y_va_fold = y.iloc[train_idx], y.iloc[val_idx]
-            
-            pip.fit(X_tr_fold, y_tr_fold)
-            preds = pip.predict(X_va_fold)
-            
-            macro_f1s.append(f1_score(y_va_fold, preds, average="macro"))
-            
-        mean_macro_f1 = np.mean(macro_f1s)
-        print(f"[{nome}] Média Macro-F1: {mean_macro_f1:.4f}")
 
 def main():
     print("=== ETAPA 2: IDENTIFICAÇÃO MULTICLASSE DE ATAQUES ===")
@@ -116,13 +81,18 @@ def main():
         df = criar_targets(df)
         
     # 2. Excluir holdout canônico (dados reservados para teste fim-a-fim)
-    idx_teste = carregar_holdout_canonico()
+    try:
+        idx_teste = carregar_holdout_canonico()
+    except FileNotFoundError as e:
+        print(f"Erro: {e}")
+        print("Execute etapa1_deteccao.py primeiro para gerar o holdout canônico.")
+        return
     df = df.loc[~df.index.isin(idx_teste)].copy()
     print(f"Holdout canônico excluído: usando {len(df)} amostras para treino")
 
     # 3. Filtrar apenas tráfego malicioso e remover classes ultra-raras
     df_ataques = filtrar_e_preparar_ataques(df)
-    df_ataques = limpar_classes_raras(df_ataques, min_samples=6)
+    df_ataques = limpar_classes_raras(df_ataques)
     
     # 3. Preparação de features e split em Treino/Teste
     X, y = preparar_features(df_ataques, alvo="target_tipo")
@@ -134,14 +104,11 @@ def main():
     print(f"Partição de Treino: {X_train.shape} | Teste Final: {X_test.shape}")
     print(f"Distribuição de classes no Treino:\n{y_train.value_counts()}")
     
-    # 4. Executar Validação Cruzada para seleção de modelos (opcional, mantido para logs)
-    avaliar_cv(X_train, y_train)
-    
-    # 5. Definição do Pipeline e busca de hiperparâmetros
+    # 4. Definição do Pipeline e busca de hiperparâmetros
     pipeline = Pipeline([
         ("variance", VarianceThreshold()),
         ("scaler", StandardScaler()),
-        ("smote", SMOTE(random_state=42)),
+        ("smote", SMOTE(k_neighbors=SMOTE_K_NEIGHBORS, random_state=42)),
         ("model", RandomForestClassifier(random_state=42, class_weight="balanced"))
     ])
     
@@ -169,7 +136,7 @@ def main():
         pipeline,
         param_grid,
         scoring="f1_macro",
-        cv=5,
+        cv=CV_SPLITS,
         n_jobs=-1
     )
     grid_search.fit(X_train, y_train)
@@ -182,13 +149,13 @@ def main():
     best_model_name = type(best_model_obj).__name__
     print(f"\nMelhor classificador selecionado: {best_model_name}")
     
-    # 6. Avaliação final no conjunto de TESTE
+    # 5. Avaliação final no conjunto de TESTE
     y_pred_teste = best_pipeline.predict(X_test)
     
     print("\n=== RELATÓRIO DE CLASSIFICAÇÃO NO TESTE ===")
     print(classification_report(y_test, y_pred_teste))
     
-    # 7. Matriz de Confusão NxN
+    # 6. Matriz de Confusão NxN
     classes_ordenadas = sorted(y_test.unique())
     cm = confusion_matrix(y_test, y_pred_teste, labels=classes_ordenadas)
     
@@ -200,7 +167,7 @@ def main():
         titulo=f"Matriz de Confusão (Identificação de Ataques) - {best_model_name}"
     )
     
-    # 8. Importância de features
+    # 7. Importância de features
     if hasattr(best_model_obj, "feature_importances_"):
         colunas_apos_var = X_train.columns[best_pipeline.named_steps["variance"].get_support()]
         importancias = pd.Series(best_model_obj.feature_importances_, index=colunas_apos_var)
@@ -210,14 +177,16 @@ def main():
             print(f"{col:<35}: {imp:.4f}")
     elif hasattr(best_model_obj, "coef_"):
         colunas_apos_var = X_train.columns[best_pipeline.named_steps["variance"].get_support()]
-        importancias = pd.Series(np.abs(best_model_obj.coef_[0]), index=colunas_apos_var)
+        coef = np.asarray(best_model_obj.coef_)
+        valores = np.abs(coef) if coef.ndim == 1 else np.abs(coef).mean(axis=0)
+        importancias = pd.Series(valores, index=colunas_apos_var)
         top_10 = importancias.sort_values(ascending=False).head(10)
-        print("\n=== TOP 10 FEATURES MAIS IMPORTANTES (Coefs Absolutos) ===")
+        print("\n=== TOP 10 FEATURES MAIS IMPORTANTES (Média dos Coefs Absolutos por Classe) ===")
         for col, imp in top_10.items():
             print(f"{col:<35}: {imp:.4f}")
         
-    # 9. Salvar o bundle
-    caminho_bundle = MODELS_DIR / "etapa2.joblib"
+    # 8. Salvar o bundle
+    caminho_bundle = MODELS_DIR / "rf_etapa2.joblib"
     print(f"\nSalvando o bundle do modelo multiclasse em: {caminho_bundle}")
     
     salvar_bundle(

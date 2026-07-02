@@ -11,8 +11,8 @@ from backend.preprocessamento import carregar_bundle, MODELS_DIR
 
 class TestModelagemIntegration(unittest.TestCase):
     def test_etapa1_bundle_loading_and_prediction(self):
-        caminho_e1 = MODELS_DIR / "etapa1.joblib"
-        self.assertTrue(caminho_e1.exists(), f"Bundle {caminho_e1} não encontrado. Execute etapa1_deteccao.py primeiro.")
+        caminho_e1 = MODELS_DIR / "rf_etapa1.joblib"
+        self.assertTrue(caminho_e1.exists(), f"Bundle {caminho_e1} não encontrado. Execute gerar_bundle_falso.py ou etapa1_deteccao.py primeiro.")
         
         bundle = carregar_bundle(caminho_e1)
         self.assertIn("modelo", bundle)
@@ -45,8 +45,8 @@ class TestModelagemIntegration(unittest.TestCase):
         self.assertTrue(set(preds).issubset({0, 1}))
 
     def test_etapa2_bundle_loading_and_prediction(self):
-        caminho_e2 = MODELS_DIR / "etapa2.joblib"
-        self.assertTrue(caminho_e2.exists(), f"Bundle {caminho_e2} não encontrado. Execute etapa2_identificacao.py primeiro.")
+        caminho_e2 = MODELS_DIR / "rf_etapa2.joblib"
+        self.assertTrue(caminho_e2.exists(), f"Bundle {caminho_e2} não encontrado. Execute gerar_bundle_falso.py ou etapa2_identificacao.py primeiro.")
         
         bundle = carregar_bundle(caminho_e2)
         self.assertIn("modelo", bundle)
