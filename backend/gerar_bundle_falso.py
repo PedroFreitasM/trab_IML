@@ -8,6 +8,7 @@ Uso:  python backend/gerar_bundle_falso.py
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.tree import DecisionTreeClassifier
 
 from preprocessamento import (ARQUIVOS, COLUNAS_VAZAMENTO, DATA_DIR, MODELS_DIR,
                               salvar_bundle)
@@ -38,6 +39,14 @@ def main() -> None:
     # Etapa 2 -- multiclasse (familias)
     m2 = RandomForestClassifier(n_estimators=10, random_state=42).fit(X, rng.choice(FAMILIAS, 300))
     salvar_bundle(MODELS_DIR / "rf_etapa2.joblib", m2, cols, classes=FAMILIAS)
+
+    # Etapa 1 -- DT binario (interpretabilidade)
+    m3 = DecisionTreeClassifier(max_depth=3, random_state=42).fit(X, rng.integers(0, 2, 300))
+    salvar_bundle(MODELS_DIR / "dt_etapa1.joblib", m3, cols, classes=[0, 1], limiar=0.5)
+
+    # Etapa 2 -- DT multiclasse (interpretabilidade)
+    m4 = DecisionTreeClassifier(max_depth=3, random_state=42).fit(X, rng.choice(FAMILIAS, 300))
+    salvar_bundle(MODELS_DIR / "dt_etapa2.joblib", m4, cols, classes=FAMILIAS)
 
     print(f"Bundles falsos criados em {MODELS_DIR} ({len(cols)} colunas).")
     print("ATENCAO: modelos sem valor preditivo -- apenas para o dashboard rodar.")
